@@ -1,0 +1,7 @@
+{
+  "name": "NapNav",
+  "description": "A location-based alarm that wakes you up when you arrive near your destination using Gemini for intelligent location search and voice alerts.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
