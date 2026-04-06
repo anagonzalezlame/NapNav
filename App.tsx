@@ -47,6 +47,7 @@ const App: React.FC = () => {
   const wakeLockRef = useRef<any>(null);
   const debounceRef = useRef<number | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const beepTimeoutRef = useRef<number | null>(null);
 
   // Load from LocalStorage
   useEffect(() => {
@@ -286,6 +287,10 @@ const App: React.FC = () => {
       // Generate text script instead of audio bytes
       const alarmScript = await generateAlarmAudio(location.name, alarmSettings.intensity);
 
+      if (alarmScript === "FALLBACK_BEEP") {
+        alert("Servidor de voz saturado, usando alerta básica");
+      }
+
       setDraftAlarm({
         target: location,
         radius: radiusOverride || 500, 
@@ -306,6 +311,10 @@ const App: React.FC = () => {
       // Regenerate script (or could store it, but generating allows dynamic updates)
       const alarmScript = await generateAlarmAudio(place.name, alarmSettings.intensity);
       
+      if (alarmScript === "FALLBACK_BEEP") {
+        alert("Servidor de voz saturado, usando alerta básica");
+      }
+
       setDraftAlarm({
         target: place,
         radius: place.defaultRadius || 500,
@@ -342,6 +351,10 @@ const App: React.FC = () => {
       };
 
       const alarmScript = await generateAlarmAudio(location.name, alarmSettings.intensity);
+
+      if (alarmScript === "FALLBACK_BEEP") {
+        alert("Servidor de voz saturado, usando alerta básica");
+      }
 
       setDraftAlarm({
         target: location,
@@ -421,8 +434,46 @@ const App: React.FC = () => {
   const playAlarmSound = (alarm: AlarmConfig) => {
     if (!alarm?.alarmMessage) return;
 
-    // Stop any existing speech
-    window.speechSynthesis.cancel();
+    // Stop any existing speech or beep
+    stopAlarmSound();
+
+    if (alarm.alarmMessage === "FALLBACK_BEEP") {
+      const playBeep = () => {
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          
+          oscillator.type = 'sine';
+          // Adjust frequency based on intensity
+          if (alarmSettings.intensity === 'soft') oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+          else if (alarmSettings.intensity === 'intense') oscillator.frequency.setValueAtTime(1046.50, audioCtx.currentTime);
+          else oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+          
+          gainNode.gain.setValueAtTime(alarmSettings.volume / 100, audioCtx.currentTime);
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.5);
+          
+          oscillator.onended = () => {
+            if (status === AppStatus.ALARM_TRIGGERED) {
+              beepTimeoutRef.current = window.setTimeout(() => {
+                if (status === AppStatus.ALARM_TRIGGERED) {
+                  playBeep();
+                }
+              }, 500);
+            }
+          };
+        } catch (e) {
+          console.error("Error playing beep", e);
+        }
+      };
+      playBeep();
+      return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(alarm.alarmMessage);
     speechRef.current = utterance;
@@ -463,6 +514,10 @@ const App: React.FC = () => {
   const stopAlarmSound = () => {
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
+    }
+    if (beepTimeoutRef.current) {
+      clearTimeout(beepTimeoutRef.current);
+      beepTimeoutRef.current = null;
     }
   };
 

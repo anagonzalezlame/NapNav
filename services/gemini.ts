@@ -112,10 +112,20 @@ export const generateAlarmAudio = async (locationName: string, intensity: AlarmI
     Solo devuelve el texto plano para el TTS. Sin comillas ni explicaciones extra.
   `;
 
-  const response = await getAi().models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
-    contents: prompt,
-  });
+  try {
+    const response = await getAi().models.generateContent({
+      model: "gemini-3.1-flash-lite-preview",
+      contents: prompt,
+    });
 
-  return response.text?.trim() || `¡Llegaste a ${locationName}!`;
+    return response.text?.trim() || `¡Llegaste a ${locationName}!`;
+  } catch (error: any) {
+    console.error("Error en Gemini API (generateAlarmAudio):", error);
+    // Si es un error 503 o Unavailable, devolvemos un flag para usar el beep
+    if (error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE') || error?.message?.includes('overloaded')) {
+      return "FALLBACK_BEEP";
+    }
+    // Para otros errores, devolvemos un texto por defecto para que el TTS lo lea
+    return `¡Llegaste a ${locationName}!`;
+  }
 };
