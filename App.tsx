@@ -23,7 +23,10 @@ const App: React.FC = () => {
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
   const [useHighAccuracy, setUseHighAccuracy] = useState(true); // Preference
 
-  const [alarmConfig, setAlarmConfig] = useState<AlarmConfig | null>(null);
+  const [alarms, setAlarms] = useState<AlarmConfig[]>([]);
+  const [activeAlarm, setActiveAlarm] = useState<AlarmConfig | null>(null);
+  const [draftAlarm, setDraftAlarm] = useState<Partial<AlarmConfig> | null>(null);
+  
   const [distanceHistory, setDistanceHistory] = useState<{ distance: number; time: number }[]>([]);
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   
@@ -50,10 +53,12 @@ const App: React.FC = () => {
     const loadedPlaces = localStorage.getItem('napnav_places');
     const loadedHistory = localStorage.getItem('napnav_history');
     const loadedSettings = localStorage.getItem('napnav_settings');
+    const loadedAlarms = localStorage.getItem('napnav_alarms');
     
     if (loadedPlaces) setSavedPlaces(JSON.parse(loadedPlaces));
     if (loadedHistory) setHistory(JSON.parse(loadedHistory));
     if (loadedSettings) setAlarmSettings(JSON.parse(loadedSettings));
+    if (loadedAlarms) setAlarms(JSON.parse(loadedAlarms));
   }, []);
 
   // Save to LocalStorage
@@ -68,6 +73,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('napnav_settings', JSON.stringify(alarmSettings));
   }, [alarmSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('napnav_alarms', JSON.stringify(alarms));
+  }, [alarms]);
 
   // Geolocation Watcher
   useEffect(() => {
@@ -142,22 +151,69 @@ const App: React.FC = () => {
     };
   }, [query, currentLocation, status]);
 
-  // Distance Tracking
-  useEffect(() => {
-    if (status !== AppStatus.TRACKING || !currentLocation || !alarmConfig) return;
-
-    const dist = calculateDistance(currentLocation, alarmConfig.target);
-    setCurrentDistance(dist);
-
-    setDistanceHistory((prev) => {
-      const newData = [...prev, { distance: dist, time: Date.now() }];
-      return newData.slice(-20);
-    });
-
-    if (dist <= alarmConfig.radius) {
-      triggerAlarm();
+  const isRecurrenceValid = useCallback((recurrence: RecurrenceConfig): boolean => {
+    const now = new Date();
+    if (recurrence.type === 'once') return true;
+    if (recurrence.type === 'always') return true;
+    if (recurrence.type === 'daysOfWeek' && recurrence.days) {
+      return recurrence.days.includes(now.getDay());
     }
-  }, [currentLocation, status, alarmConfig]);
+    if (recurrence.type === 'untilDate' && recurrence.until) {
+      const untilDate = new Date(recurrence.until);
+      // Compare dates ignoring time
+      untilDate.setHours(23, 59, 59, 999);
+      return now <= untilDate;
+    }
+    return true;
+  }, []);
+
+  // Distance Tracking (Background Check)
+  useEffect(() => {
+    if (!currentLocation || status === AppStatus.ALARM_TRIGGERED) return;
+
+    const enabledAlarms = alarms.filter(a => a.enabled && isRecurrenceValid(a.recurrence));
+    
+    if (enabledAlarms.length === 0) {
+      if (status === AppStatus.TRACKING) {
+        setStatus(AppStatus.IDLE);
+      }
+      return;
+    }
+
+    let triggered: AlarmConfig | null = null;
+    let minDistance = Infinity;
+    let closestAlarm: AlarmConfig | null = null;
+
+    for (const alarm of enabledAlarms) {
+      const dist = calculateDistance(currentLocation, alarm.target);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestAlarm = alarm;
+      }
+      
+      if (dist <= alarm.radius) {
+        triggered = alarm;
+        break;
+      }
+    }
+
+    if (minDistance !== Infinity) {
+      setCurrentDistance(minDistance);
+      setDistanceHistory((prev) => {
+        const newData = [...prev, { distance: minDistance, time: Date.now() }];
+        return newData.slice(-20);
+      });
+    }
+
+    // Update active alarm for tracking view if needed
+    if (status === AppStatus.TRACKING && closestAlarm && (!activeAlarm || activeAlarm.id !== closestAlarm.id)) {
+      setActiveAlarm(closestAlarm);
+    }
+
+    if (triggered) {
+      triggerAlarm(triggered);
+    }
+  }, [currentLocation, status, alarms, isRecurrenceValid, activeAlarm]);
 
   // Wake Lock
   const requestWakeLock = async () => {
@@ -181,22 +237,37 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Reset query when returning to IDLE
+  useEffect(() => {
+    if (status === AppStatus.IDLE) {
+      setQuery('');
+    }
+  }, [status]);
+
   // --- Logic Functions ---
 
   const executeSearch = async (searchQuery: string, radiusOverride?: number) => {
     if (!searchQuery.trim()) return;
 
+    // Quitar el foco del input para ocultar el teclado en móviles
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     setStatus(AppStatus.SEARCHING);
     setShowSuggestions(false);
+    setQuery(''); // Limpiar el input al confirmar
+    
     try {
       const location = await findLocation(searchQuery);
       // Generate text script instead of audio bytes
       const alarmScript = await generateAlarmScript(location.name, alarmSettings.intensity);
 
-      setAlarmConfig({
+      setDraftAlarm({
         target: location,
         radius: radiusOverride || 500, 
-        alarmMessage: alarmScript
+        alarmMessage: alarmScript,
+        recurrence: { type: 'once' }
       });
       setStatus(AppStatus.CONFIRMING);
     } catch (error) {
@@ -212,10 +283,11 @@ const App: React.FC = () => {
       // Regenerate script (or could store it, but generating allows dynamic updates)
       const alarmScript = await generateAlarmScript(place.name, alarmSettings.intensity);
       
-      setAlarmConfig({
+      setDraftAlarm({
         target: place,
         radius: place.defaultRadius || 500,
-        alarmMessage: alarmScript
+        alarmMessage: alarmScript,
+        recurrence: { type: 'once' }
       });
       setStatus(AppStatus.CONFIRMING);
     } catch (error) {
@@ -234,11 +306,10 @@ const App: React.FC = () => {
     executeSearch(suggestion);
   };
 
-  const startTracking = async () => {
-    if (!alarmConfig) return;
+  const saveAlarm = async () => {
+    if (!draftAlarm || !draftAlarm.target || !draftAlarm.radius || !draftAlarm.alarmMessage || !draftAlarm.recurrence) return;
     
     // "Prime" the speech synthesis engine on user interaction
-    // This helps bypass browser autoplay policies
     window.speechSynthesis.cancel();
     const silent = new SpeechSynthesisUtterance("");
     silent.volume = 0;
@@ -246,22 +317,32 @@ const App: React.FC = () => {
 
     await requestWakeLock();
 
+    const newAlarm: AlarmConfig = {
+      id: Date.now().toString(),
+      enabled: true,
+      target: draftAlarm.target,
+      radius: draftAlarm.radius,
+      alarmMessage: draftAlarm.alarmMessage,
+      recurrence: draftAlarm.recurrence
+    };
+
+    setAlarms(prev => [...prev, newAlarm]);
+
     // Add to history
     const newHistoryItem: SavedPlace = {
-      ...alarmConfig.target,
+      ...draftAlarm.target,
       id: Date.now().toString(),
       dateAdded: Date.now(),
-      defaultRadius: alarmConfig.radius
+      defaultRadius: draftAlarm.radius
     };
     
     setHistory(prev => {
-      // Remove duplicates by name to avoid clutter
       const filtered = prev.filter(p => p.name !== newHistoryItem.name);
-      // Add to top, limit to 5
       return [newHistoryItem, ...filtered].slice(0, 5);
     });
 
-    setStatus(AppStatus.TRACKING);
+    setDraftAlarm(null);
+    setStatus(AppStatus.ALARMS_LIST);
   };
 
   const stopTracking = async () => {
@@ -274,19 +355,25 @@ const App: React.FC = () => {
     await releaseWakeLock();
   };
 
-  const triggerAlarm = () => {
+  const triggerAlarm = (alarm: AlarmConfig) => {
+    setActiveAlarm(alarm);
     setStatus(AppStatus.ALARM_TRIGGERED);
-    playAlarmSound();
+    playAlarmSound(alarm);
     startVibration();
+    
+    // If it's a 'once' alarm, disable it
+    if (alarm.recurrence.type === 'once') {
+      setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: false } : a));
+    }
   };
 
-  const playAlarmSound = () => {
-    if (!alarmConfig?.alarmMessage) return;
+  const playAlarmSound = (alarm: AlarmConfig) => {
+    if (!alarm?.alarmMessage) return;
 
     // Stop any existing speech
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(alarmConfig.alarmMessage);
+    const utterance = new SpeechSynthesisUtterance(alarm.alarmMessage);
     speechRef.current = utterance;
     
     // Configure voice
@@ -389,6 +476,80 @@ const App: React.FC = () => {
 
   // --- UI RENDERERS ---
 
+  const renderAlarmsList = () => (
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col font-sans">
+      <div className="bg-white px-6 pt-12 pb-8 rounded-b-[2.5rem] shadow-sm border-b border-slate-100 relative z-10">
+        <div className="flex items-center justify-between mb-8">
+            <button 
+                onClick={() => setStatus(AppStatus.IDLE)} 
+                className="p-3 -ml-2 rounded-2xl hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors"
+            >
+                <ArrowLeft className="w-6 h-6" />
+            </button>
+        </div>
+        
+        <div className="flex items-center gap-5">
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-3xl flex items-center justify-center border-4 border-white shadow-lg shadow-indigo-100">
+                <Bell className="w-10 h-10 text-indigo-600" />
+            </div>
+            <div>
+                <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Mis Alarmas</h2>
+                <p className="text-slate-500 font-medium">{alarms.length} guardadas</p>
+            </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {alarms.length === 0 ? (
+          <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
+            <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-slate-400 font-medium text-sm">No tienes alarmas configuradas.</p>
+          </div>
+        ) : (
+          alarms.map(alarm => (
+            <div key={alarm.id} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-lg">{alarm.target.name}</h3>
+                  <p className="text-xs text-slate-500">{formatDistance(alarm.radius)} • {
+                    alarm.recurrence.type === 'once' ? 'Una vez' :
+                    alarm.recurrence.type === 'always' ? 'Siempre' :
+                    alarm.recurrence.type === 'daysOfWeek' ? 'Días específicos' : 'Hasta fecha'
+                  }</p>
+                </div>
+                <button 
+                  onClick={() => setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: !a.enabled } : a))}
+                  className={`w-14 h-8 rounded-full transition-colors relative shadow-inner shrink-0 ${alarm.enabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 ${alarm.enabled ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+              <div className="flex gap-2 border-t border-slate-50 pt-4">
+                <button 
+                  onClick={() => {
+                    setDraftAlarm(alarm);
+                    setStatus(AppStatus.CONFIRMING);
+                    // Also remove the old one so it gets replaced, or handle update in saveAlarm
+                    setAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                  }}
+                  className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl font-medium text-sm hover:bg-slate-100 transition-colors"
+                >
+                  Editar
+                </button>
+                <button 
+                  onClick={() => setAlarms(prev => prev.filter(a => a.id !== alarm.id))}
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   const renderIdle = () => (
     <div className="relative flex flex-col items-center justify-center min-h-[100dvh] overflow-hidden bg-slate-50">
       {/* Background */}
@@ -399,7 +560,16 @@ const App: React.FC = () => {
       </div>
 
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex justify-end z-20">
+      <div className="absolute top-0 left-0 right-0 p-6 flex justify-between z-20">
+        <button 
+          onClick={() => setStatus(AppStatus.ALARMS_LIST)}
+          className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 border border-white/50 flex items-center gap-2"
+        >
+          <Bell className="w-6 h-6" />
+          {alarms.filter(a => a.enabled).length > 0 && (
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+          )}
+        </button>
         <button 
           onClick={() => setStatus(AppStatus.PROFILE)}
           className="bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 border border-white/50"
@@ -791,15 +961,15 @@ const App: React.FC = () => {
   );
 
   const renderConfirming = () => {
-    const isFavorite = isSaved(alarmConfig?.target);
+    const isFavorite = isSaved(draftAlarm?.target);
 
     return (
       <div className="flex flex-col h-[100dvh] bg-slate-50">
-        <div className="h-[45%] w-full relative">
+        <div className="h-[35%] w-full relative">
           <MapDisplay 
               currentLocation={currentLocation} 
-              targetLocation={alarmConfig?.target || null}
-              radius={alarmConfig?.radius || 500}
+              targetLocation={draftAlarm?.target || null}
+              radius={draftAlarm?.radius || 500}
           />
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-white to-transparent pointer-events-none z-[400]"></div>
           <button 
@@ -810,48 +980,91 @@ const App: React.FC = () => {
           </button>
         </div>
         
-        <div className="h-[55%] bg-white rounded-t-[2.5rem] -mt-10 relative z-10 px-8 pt-8 pb-6 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-          <div className="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-8"></div>
+        <div className="h-[65%] bg-white rounded-t-[2.5rem] -mt-10 relative z-10 px-8 pt-8 pb-6 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-y-auto">
+          <div className="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-8 shrink-0"></div>
           
           <div className="flex justify-between items-start mb-2">
-             <h2 className="text-3xl font-bold text-slate-900 flex-1 mr-4 leading-tight">{alarmConfig?.target.name}</h2>
+             <h2 className="text-3xl font-bold text-slate-900 flex-1 mr-4 leading-tight">{draftAlarm?.target?.name}</h2>
              <button 
-                onClick={() => alarmConfig && toggleSavedPlace(alarmConfig.target)}
+                onClick={() => draftAlarm?.target && toggleSavedPlace(draftAlarm.target)}
                 className={`p-3 rounded-2xl transition-all ${isFavorite ? 'bg-rose-50 text-rose-500 shadow-inner' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
              >
                 <Heart className={`w-7 h-7 ${isFavorite ? 'fill-current' : ''}`} />
              </button>
           </div>
           
-          <p className="text-slate-500 font-medium mb-8 text-sm">{alarmConfig?.target.address}</p>
+          <p className="text-slate-500 font-medium mb-6 text-sm">{draftAlarm?.target?.address}</p>
           
-          <div className="bg-indigo-50 p-6 rounded-3xl mb-auto border border-indigo-100/50">
+          <div className="bg-indigo-50 p-5 rounded-3xl mb-4 border border-indigo-100/50">
               <div className="flex justify-between items-center mb-4">
                   <span className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Radio de Alarma</span>
-                  <span className="text-lg font-black text-indigo-600">{formatDistance(alarmConfig?.radius || 500)}</span>
+                  <span className="text-lg font-black text-indigo-600">{formatDistance(draftAlarm?.radius || 500)}</span>
               </div>
               <input 
                   type="range" 
                   min="100" 
                   max="2000" 
                   step="100"
-                  value={alarmConfig?.radius}
-                  onChange={(e) => setAlarmConfig(prev => prev ? ({...prev, radius: Number(e.target.value)}) : null)}
+                  value={draftAlarm?.radius}
+                  onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, radius: Number(e.target.value)}) : null)}
                   className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
-              <p className="text-xs text-indigo-400 mt-3 font-medium flex items-center gap-2">
-                <Bell className="w-3 h-3" />
-                Te despertaremos al entrar en esta zona.
-              </p>
           </div>
 
-          <div className="flex gap-4 mt-6">
+          <div className="bg-slate-50 p-5 rounded-3xl mb-auto border border-slate-100">
+              <span className="text-sm font-bold text-slate-700 uppercase tracking-wider block mb-3">Recurrencia</span>
+              <select 
+                value={draftAlarm?.recurrence?.type || 'once'}
+                onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { type: e.target.value as any, days: e.target.value === 'daysOfWeek' ? [1,2,3,4,5] : undefined }}) : null)}
+                className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-3 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all mb-3"
+              >
+                <option value="once">Solo una vez</option>
+                <option value="always">Siempre activa</option>
+                <option value="daysOfWeek">Días específicos</option>
+                <option value="untilDate">Hasta una fecha</option>
+              </select>
+
+              {draftAlarm?.recurrence?.type === 'daysOfWeek' && (
+                <div className="flex justify-between gap-1 mt-2">
+                  {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, idx) => {
+                    const isSelected = draftAlarm.recurrence?.days?.includes(idx);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setDraftAlarm(prev => {
+                            if (!prev || !prev.recurrence) return prev;
+                            const days = prev.recurrence.days || [];
+                            const newDays = days.includes(idx) ? days.filter(d => d !== idx) : [...days, idx];
+                            return { ...prev, recurrence: { ...prev.recurrence, days: newDays } };
+                          });
+                        }}
+                        className={`w-10 h-10 rounded-full font-bold text-sm flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-500 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                      >
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {draftAlarm?.recurrence?.type === 'untilDate' && (
+                <input 
+                  type="date"
+                  value={draftAlarm.recurrence.until || ''}
+                  onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { ...prev.recurrence!, until: e.target.value }}) : null)}
+                  className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-3 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
+                />
+              )}
+          </div>
+
+          <div className="flex gap-4 mt-6 shrink-0">
               <button 
-                  onClick={startTracking}
+                  onClick={saveAlarm}
                   className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 text-white py-4 rounded-2xl text-lg font-bold shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
               >
-                  <Navigation className="w-6 h-6 fill-white/20" />
-                  Iniciar Ruta
+                  <Check className="w-6 h-6 fill-white/20" />
+                  Guardar Alarma
               </button>
           </div>
         </div>
@@ -865,8 +1078,8 @@ const App: React.FC = () => {
       <div className="relative flex-1 w-full bg-slate-800 z-0">
         <MapDisplay 
             currentLocation={currentLocation} 
-            targetLocation={alarmConfig?.target || null}
-            radius={alarmConfig?.radius || 500}
+            targetLocation={activeAlarm?.target || null}
+            radius={activeAlarm?.radius || 500}
             zoom={15} // Closer zoom for tracking
         />
         {/* Subtle gradient at bottom of map for text readability */}
@@ -884,7 +1097,7 @@ const App: React.FC = () => {
                       <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
                       En Ruta
                    </div>
-                   <h2 className="text-2xl font-bold text-white truncate max-w-[200px]">{alarmConfig?.target.name}</h2>
+                   <h2 className="text-2xl font-bold text-white truncate max-w-[200px]">{activeAlarm?.target?.name || 'Buscando...'}</h2>
                 </div>
                 <div className="text-right">
                     <div className="text-4xl font-black tracking-tight text-white tabular-nums">
@@ -911,11 +1124,11 @@ const App: React.FC = () => {
             </div>
 
             <button 
-                onClick={stopTracking}
-                className="w-full bg-slate-800 text-white py-4 rounded-2xl text-lg font-bold border border-slate-700 hover:bg-rose-500/10 hover:border-rose-500/50 hover:text-rose-400 transition-all flex items-center justify-center gap-3 group active:scale-[0.98]"
+                onClick={() => setStatus(AppStatus.IDLE)}
+                className="w-full bg-slate-800 text-white py-4 rounded-2xl text-lg font-bold border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-3 group active:scale-[0.98]"
             >
-                <StopCircle className="w-6 h-6 text-slate-500 group-hover:text-rose-400 transition-colors" />
-                Cancelar Alarma
+                <ArrowLeft className="w-6 h-6 text-slate-500 group-hover:text-white transition-colors" />
+                Volver al inicio
             </button>
          </div>
       </div>
@@ -945,7 +1158,7 @@ const App: React.FC = () => {
           
           <h1 className="text-6xl font-black text-center mb-4 tracking-tighter drop-shadow-lg">¡LLEGASTE!</h1>
           <p className="text-2xl font-medium text-center mb-16 opacity-90 max-w-sm leading-relaxed">
-            Ya estás cerca de <br/><span className="font-bold">{alarmConfig?.target.name}</span>
+            Ya estás cerca de <br/><span className="font-bold">{activeAlarm?.target?.name}</span>
           </p>
           
           <button 
@@ -962,6 +1175,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-[100dvh] bg-white font-sans antialiased text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
       {status === AppStatus.IDLE && renderIdle()}
+      {status === AppStatus.ALARMS_LIST && renderAlarmsList()}
       {status === AppStatus.PROFILE && renderProfile()}
       {status === AppStatus.SETTINGS && renderSettings()}
       {status === AppStatus.SEARCHING && renderSearching()}
