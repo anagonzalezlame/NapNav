@@ -1,14 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { LocationInfo, Coordinates, AlarmIntensity } from "../types";
 
-const GEMINI_API_KEY = 'AIzaSyAKSTVMIzWNb9PbBAI3QkWevVsgXvpS8PQ';
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const getAi = () => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Error crítico: VITE_GEMINI_API_KEY no está definida en las variables de entorno.");
+    throw new Error("Error de configuración para la persona usuaria: La clave de Gemini no está configurada.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 /**
  * Processes a natural language query to find a specific location.
  */
 export const findLocation = async (query: string): Promise<LocationInfo> => {
-  const response = await ai.models.generateContent({
+  const response = await getAi().models.generateContent({
     model: 'gemini-3.1-flash-lite-preview',
     contents: `Act as a geocoding expert. The user is searching for a location in a casual way.
     
@@ -62,7 +68,7 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
     contextInstruction = "User location unknown. Provide general global suggestions.";
   }
   
-  const response = await ai.models.generateContent({
+  const response = await getAi().models.generateContent({
     model: 'gemini-3.1-flash-lite-preview',
     contents: `
       Act as a location search autocomplete engine for a local travel alarm app.
@@ -106,7 +112,7 @@ export const generateAlarmAudio = async (locationName: string, intensity: AlarmI
     Solo devuelve el texto plano para el TTS. Sin comillas ni explicaciones extra.
   `;
 
-  const response = await ai.models.generateContent({
+  const response = await getAi().models.generateContent({
     model: "gemini-3.1-flash-lite-preview",
     contents: prompt,
   });
