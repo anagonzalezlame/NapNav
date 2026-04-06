@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     define: {
       // This ensures your code using process.env.API_KEY still works
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
   };
 });

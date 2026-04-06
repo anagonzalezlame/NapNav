@@ -1,14 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { LocationInfo, Coordinates, AlarmIntensity } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
 
 /**
  * Processes a natural language query to find a specific location.
  */
 export const findLocation = async (query: string): Promise<LocationInfo> => {
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     contents: `Act as a geocoding expert. The user is searching for a location in a casual way.
     
     User Query: "${query}"
@@ -63,7 +63,7 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
   }
   
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     contents: `
       Act as a location search autocomplete engine for a local travel alarm app.
       Query: "${query}"
@@ -112,7 +112,7 @@ export const generateAlarmScript = async (locationName: string, intensity: Alarm
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-flash-lite-preview",
     contents: prompt,
   });
 

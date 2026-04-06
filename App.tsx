@@ -130,7 +130,7 @@ const App: React.FC = () => {
         } finally {
           setIsSuggesting(false);
         }
-      }, 500); 
+      }, 300); 
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
