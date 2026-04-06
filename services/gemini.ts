@@ -95,37 +95,70 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
   }
 };
 
+const audioCache: Record<string, string> = {};
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
  * Generates a text script for the alarm based on intensity.
  */
 export const generateAlarmAudio = async (locationName: string, intensity: AlarmIntensity = 'normal'): Promise<string> => {
-  const prompt = `
-    Actúa como un asistente de viaje. Genera un mensaje corto para ser leído en voz alta (TTS) en Español Rioplatense cuando el usuario llega a "${locationName}".
-    
-    Intensidad: ${intensity}
-
-    Instrucciones de tono:
-    - 'soft': Muy amable, tranquilo, gentil. Ejemplo: "Disculpa, ya estamos llegando a tu destino. Prepárate con calma."
-    - 'normal': Informativo, claro, directo. Ejemplo: "Llegando a ${locationName}. Por favor prepárate para bajar."
-    - 'intense': ¡Urgente! ¡Alarmante! ¡Enérgico! Usa mayúsculas y signos de exclamación para enfatizar. Ejemplo: "¡DESPIERTA! ¡ESTAMOS EN ${locationName}! ¡DALE QUE TE PASÁS!"
-
-    Solo devuelve el texto plano para el TTS. Sin comillas ni explicaciones extra.
-  `;
-
-  try {
-    const response = await getAi().models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
-      contents: prompt,
-    });
-
-    return response.text?.trim() || `¡Llegaste a ${locationName}!`;
-  } catch (error: any) {
-    console.error("Error en Gemini API (generateAlarmAudio):", error);
-    // Si es un error 503 o Unavailable, devolvemos un flag para usar el beep
-    if (error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE') || error?.message?.includes('overloaded')) {
-      return "FALLBACK_BEEP";
-    }
-    // Para otros errores, devolvemos un texto por defecto para que el TTS lo lea
-    return `¡Llegaste a ${locationName}!`;
+  const cacheKey = `${locationName}_${intensity}`;
+  
+  // 1. Audio Cache: Check if we already generated a message for this location and intensity
+  if (audioCache[cacheKey]) {
+    console.log(`[Cache Hit] Usando mensaje guardado para: ${cacheKey}`);
+    return audioCache[cacheKey];
   }
+
+  // 2. Optimización de Prompt: Más corto y directo para ahorrar tokens y tiempo
+  const prompt = `Genera un mensaje corto (1 oración) para TTS en Español Rioplatense al llegar a "${locationName}". Tono: ${intensity} (soft=amable, normal=directo, intense=urgente/mayúsculas). Solo el texto.`;
+
+  const maxRetries = 2;
+  let attempt = 0;
+
+  // 3. Retry Strategy con Exponential Backoff
+  while (attempt <= maxRetries) {
+    try {
+      const response = await getAi().models.generateContent({
+        model: "gemini-3.1-flash-lite-preview",
+        contents: prompt,
+      });
+
+      const result = response.text?.trim() || `¡Llegaste a ${locationName}!`;
+      
+      // Guardar en caché para futuras alarmas en el mismo lugar
+      audioCache[cacheKey] = result;
+      return result;
+      
+    } catch (error: any) {
+      attempt++;
+      
+      // 4. Verificación de Cuota: Log detallado para QA
+      const statusCode = error?.status || error?.response?.status || 'UNKNOWN';
+      const errorMessage = error?.message || 'Sin mensaje de error';
+      console.error(`[QA Log] Error Gemini API (Intento ${attempt}/${maxRetries + 1}): Código ${statusCode} - ${errorMessage}`);
+
+      const isRetryable = 
+        statusCode === 503 || 
+        statusCode === 429 || 
+        errorMessage.includes('503') || 
+        errorMessage.includes('429') || 
+        errorMessage.includes('UNAVAILABLE') || 
+        errorMessage.includes('overloaded');
+
+      if (isRetryable && attempt <= maxRetries) {
+        const waitTime = Math.pow(2, attempt) * 500; // 1000ms, 2000ms
+        console.log(`[Retry] Servidor saturado. Reintentando en ${waitTime}ms...`);
+        await delay(waitTime);
+      } else if (isRetryable) {
+        console.warn("[Fallback] Servidor saturado tras reintentos. Usando alerta básica.");
+        return "FALLBACK_BEEP";
+      } else {
+        // Si es otro tipo de error (ej. 400 Bad Request), no reintentamos y devolvemos texto por defecto
+        return `¡Llegaste a ${locationName}!`;
+      }
+    }
+  }
+  
+  return "FALLBACK_BEEP";
 };
