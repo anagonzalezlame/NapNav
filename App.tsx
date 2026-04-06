@@ -15,7 +15,7 @@ const App: React.FC = () => {
   // State
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   
@@ -131,7 +131,12 @@ const App: React.FC = () => {
       setIsSuggesting(true);
       debounceRef.current = window.setTimeout(async () => {
         try {
-          const results = await getPlaceSuggestions(query, currentLocation);
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=-56.4,-34.7,-56.0,-34.9&bounded=1`, {
+            headers: {
+              'User-Agent': 'NapNav/1.0 (anitagl@gmail.com)'
+            }
+          });
+          const results = await response.json();
           setSuggestions(results);
           setShowSuggestions(true);
         } catch (e) {
@@ -139,7 +144,7 @@ const App: React.FC = () => {
         } finally {
           setIsSuggesting(false);
         }
-      }, 300); 
+      }, 500); 
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -149,7 +154,7 @@ const App: React.FC = () => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, currentLocation, status]);
+  }, [query, status]);
 
   const isRecurrenceValid = useCallback((recurrence: RecurrenceConfig): boolean => {
     const now = new Date();
@@ -259,7 +264,25 @@ const App: React.FC = () => {
     setQuery(''); // Limpiar el input al confirmar
     
     try {
-      const location = await findLocation(searchQuery);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&viewbox=-56.4,-34.7,-56.0,-34.9&bounded=1`, {
+        headers: {
+          'User-Agent': 'NapNav/1.0 (anitagl@gmail.com)'
+        }
+      });
+      const results = await response.json();
+      
+      if (!results || results.length === 0) {
+        throw new Error("No results");
+      }
+      
+      const suggestion = results[0];
+      const location: LocationInfo = {
+        name: suggestion.display_name.split(',')[0],
+        address: suggestion.display_name,
+        lat: parseFloat(suggestion.lat),
+        lng: parseFloat(suggestion.lon)
+      };
+
       // Generate text script instead of audio bytes
       const alarmScript = await generateAlarmAudio(location.name, alarmSettings.intensity);
 
@@ -301,9 +324,37 @@ const App: React.FC = () => {
     executeSearch(query);
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    setQuery(suggestion);
-    executeSearch(suggestion);
+  const handleSuggestionClick = async (suggestion: any) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    setStatus(AppStatus.SEARCHING);
+    setShowSuggestions(false);
+    setQuery(''); // Limpiar el input al confirmar
+    
+    try {
+      const location: LocationInfo = {
+        name: suggestion.display_name.split(',')[0],
+        address: suggestion.display_name,
+        lat: parseFloat(suggestion.lat),
+        lng: parseFloat(suggestion.lon)
+      };
+
+      const alarmScript = await generateAlarmAudio(location.name, alarmSettings.intensity);
+
+      setDraftAlarm({
+        target: location,
+        radius: 500, 
+        alarmMessage: alarmScript,
+        recurrence: { type: 'once' }
+      });
+      setStatus(AppStatus.CONFIRMING);
+    } catch (error) {
+      console.error(error);
+      alert("No pudimos configurar la alarma. Inténtalo de nuevo.");
+      setStatus(AppStatus.IDLE);
+    }
   };
 
   const saveAlarm = async () => {
@@ -598,7 +649,7 @@ const App: React.FC = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
-              placeholder="¿A dónde quieres ir?"
+              placeholder="Buscá tu destino en Montevideo..."
               // Added relative and z-10 to input to ensure it sits on top of the shadow
               className="w-full pl-14 pr-16 py-5 rounded-3xl border border-indigo-100 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] focus:shadow-[0_8px_30px_rgb(99,102,241,0.15)] focus:border-indigo-300 focus:ring-0 transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium relative z-10"
             />
@@ -631,7 +682,7 @@ const App: React.FC = () => {
                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
                         <MapPin className="w-4 h-4 text-slate-400" />
                       </div>
-                      <span className="truncate font-medium">{item}</span>
+                      <span className="truncate font-medium">{item.display_name}</span>
                     </button>
                   </li>
                 ))}
@@ -946,9 +997,9 @@ const App: React.FC = () => {
             <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
         </div>
       </div>
-      <h3 className="text-xl font-bold text-slate-800 mb-2">Buscando destino...</h3>
+      <h3 className="text-xl font-bold text-slate-800 mb-2">Buscando ubicación para la persona usuaria...</h3>
       <p className="text-slate-500 font-medium text-center max-w-xs leading-relaxed">
-        Consultando a Gemini para localizar las mejores coordenadas.
+        Consultando a Nominatim para localizar las mejores coordenadas.
       </p>
       
       <button 
