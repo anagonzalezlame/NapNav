@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { LocationInfo, Coordinates, AlarmIntensity } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
+const GEMINI_API_KEY = 'AIzaSyAKSTVMIzWNb9PbBAI3QkWevVsgXvpS8PQ';
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 /**
  * Processes a natural language query to find a specific location.
@@ -42,7 +43,6 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
 
 /**
  * Provides autocomplete suggestions based on user context.
- * Prioritizes close locations (within 5km), then nearby (within 50km).
  */
 export const getPlaceSuggestions = async (query: string, userLocation: Coordinates | null): Promise<string[]> => {
   let contextInstruction = "";
@@ -91,13 +91,8 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
 
 /**
  * Generates a text script for the alarm based on intensity.
- * This script will be spoken by the Web Speech API.
  */
-export const generateAlarmScript = async (locationName: string, intensity: AlarmIntensity = 'normal'): Promise<string> => {
-  // Aquí Gemini puede ser creativo. 
-  // Si es 'intense' puede devolver: "¡DESPIERTA! ¡ESTAMOS LLEGANDO A PASO DE LA ARENA! ¡DALE QUE TE PASÁS!"
-  // Si es 'soft' puede devolver: "Disculpa, estamos cerca de tu destino en Paso de la Arena."
-  
+export const generateAlarmAudio = async (locationName: string, intensity: AlarmIntensity = 'normal'): Promise<string> => {
   const prompt = `
     Actúa como un asistente de viaje. Genera un mensaje corto para ser leído en voz alta (TTS) en Español Rioplatense cuando el usuario llega a "${locationName}".
     

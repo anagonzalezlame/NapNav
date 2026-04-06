@@ -3,10 +3,10 @@ import {
   MapPin, Navigation, Bell, Search, StopCircle, Volume2, 
   AlertCircle, RefreshCw, Loader2, ArrowLeft, X, User, 
   Settings, Heart, Trash2, History, ChevronRight, Zap, Smartphone, Check,
-  Moon, Sun
+  Moon, Sun, Key
 } from 'lucide-react';
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
-import { findLocation, generateAlarmScript, getPlaceSuggestions } from './services/gemini';
+import { findLocation, generateAlarmAudio, getPlaceSuggestions } from './services/gemini';
 import { calculateDistance, formatDistance } from './utils/geo';
 import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity } from './types';
 import MapDisplay from './components/MapDisplay';
@@ -261,7 +261,7 @@ const App: React.FC = () => {
     try {
       const location = await findLocation(searchQuery);
       // Generate text script instead of audio bytes
-      const alarmScript = await generateAlarmScript(location.name, alarmSettings.intensity);
+      const alarmScript = await generateAlarmAudio(location.name, alarmSettings.intensity);
 
       setDraftAlarm({
         target: location,
@@ -281,7 +281,7 @@ const App: React.FC = () => {
     setStatus(AppStatus.SEARCHING);
     try {
       // Regenerate script (or could store it, but generating allows dynamic updates)
-      const alarmScript = await generateAlarmScript(place.name, alarmSettings.intensity);
+      const alarmScript = await generateAlarmAudio(place.name, alarmSettings.intensity);
       
       setDraftAlarm({
         target: place,
