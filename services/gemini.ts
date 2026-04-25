@@ -16,26 +16,24 @@ const getAi = () => {
 export const findLocation = async (query: string): Promise<LocationInfo> => {
   const response = await getAi().models.generateContent({
     model: 'gemini-3.1-flash-lite-preview',
-    contents: `Act as a geocoding expert. The user is searching for a location in a casual way.
-    
-    User Query: "${query}"
-    
-    1. Identify the intended location.
-    2. Return estimated Latitude and Longitude.
-    3. Return a clean Name and a short Address (in Spanish).
-    
-    Return ONLY JSON.`,
+    contents: `Extrae la ubicación de la siguiente consulta: "${query}".
+    Devuelve un objeto JSON con:
+    - lat: Latitud (número)
+    - lng: Longitud (número)
+    - name: Nombre corto del lugar
+    - address: Dirección legible en Montevideo, Uruguay.
+    Si la ubicación es ambigua, asume que está en Montevideo.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          lat: { type: Type.NUMBER, description: "Latitude" },
-          lng: { type: Type.NUMBER, description: "Longitude" },
-          name: { type: Type.STRING, description: "Place Name" },
-          address: { type: Type.STRING, description: "Address in Spanish" },
+          lat: { type: Type.NUMBER },
+          lng: { type: Type.NUMBER },
+          name: { type: Type.STRING },
+          address: { type: Type.STRING },
         },
-        required: ["lat", "lng", "name"],
+        required: ["lat", "lng", "name", "address"],
       },
     },
   });

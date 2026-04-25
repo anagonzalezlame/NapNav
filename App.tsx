@@ -661,8 +661,9 @@ const App: React.FC = () => {
       {/* Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <MapDisplay center={{ lat: -34.9011, lng: -56.1645 }} zoom={13} />
-        {/* Improved Overlay Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/90 via-slate-50/80 to-slate-50/95 backdrop-blur-[1px]"></div>
+        {/* Stronger blur and darker overlay for readability */}
+        <div className="absolute inset-0 bg-slate-50/70 backdrop-blur-md"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 via-transparent to-slate-50/90"></div>
       </div>
 
       {/* Top Bar */}
@@ -688,45 +689,47 @@ const App: React.FC = () => {
         <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-5 rounded-3xl mb-8 shadow-xl shadow-indigo-500/20 rotate-3 hover:rotate-6 transition-transform duration-300">
           <MapPin className="w-10 h-10 text-white" strokeWidth={2.5} />
         </div>
-        <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-600 mb-3 tracking-tight">
+        <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 mb-3 tracking-tighter animate-gradient-x">
           NapNav
         </h1>
         <p className="text-slate-500 font-medium text-center mb-12 max-w-xs leading-relaxed">
           Duerme tranquilo. Nosotros te despertamos antes de que te pases.
         </p>
         
-        <div className="w-full relative group">
+        <div className="w-full relative group max-w-md">
           <form onSubmit={handleSearch} className="w-full relative z-20">
-            {/* Added pointer-events-none to the decorative shadow to prevent blocking input */}
-            <div className="absolute inset-0 bg-indigo-500/5 rounded-3xl transform translate-y-2 blur-md pointer-events-none"></div>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
-              placeholder="Buscá tu destino en Montevideo..."
-              // Added relative and z-10 to input to ensure it sits on top of the shadow
-              className="w-full pl-14 pr-16 py-5 rounded-3xl border border-indigo-100 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] focus:shadow-[0_8px_30px_rgb(99,102,241,0.15)] focus:border-indigo-300 focus:ring-0 transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium relative z-10"
-            />
-            {/* Added pointer-events-none and z-20 to icon to ensure input is clickable around it or it sits on top visually */}
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400 w-6 h-6 pointer-events-none z-20" />
+            {/* Added shadow glow effect */}
+            <div className="absolute inset-0 bg-indigo-500/20 rounded-[2rem] blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
             
-            {isSuggesting ? (
-              <Loader2 className="absolute right-5 top-1/2 -translate-y-1/2 text-indigo-500 w-5 h-5 animate-spin z-20" />
-            ) : (
-              <button 
-                  type="submit" 
-                  disabled={!query}
-                  className="absolute right-3 top-2 bottom-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 rounded-2xl font-bold text-sm disabled:opacity-50 hover:shadow-lg hover:shadow-indigo-500/30 transition-all active:scale-95 z-20"
-              >
-                  Ir
-              </button>
-            )}
+            <div className="relative overflow-hidden rounded-[2rem] p-px bg-gradient-to-b from-slate-200 to-slate-100 focus-within:from-indigo-400 focus-within:to-violet-400 transition-all shadow-xl shadow-slate-200/50">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
+                placeholder="Buscá tu destino en Montevideo..."
+                className="w-full pl-14 pr-16 py-5 rounded-[1.95rem] bg-white transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium"
+              />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 w-6 h-6 pointer-events-none transition-colors" />
+              
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {isSuggesting && (
+                  <Loader2 className="text-indigo-500 w-5 h-5 animate-spin" />
+                )}
+                <button 
+                    type="submit" 
+                    disabled={!query}
+                    className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm disabled:opacity-30 hover:bg-indigo-600 hover:shadow-lg hover:shadow-indigo-500/30 transition-all active:scale-95"
+                >
+                    Ir
+                </button>
+              </div>
+            </div>
           </form>
 
           {/* Autocomplete */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-full left-4 right-4 mt-2 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden z-30 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute top-[calc(100%+12px)] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden z-30 animate-in fade-in slide-in-from-top-4 duration-300 ring-8 ring-slate-900/5">
               <ul className="divide-y divide-slate-50">
                 {suggestions.map((item, idx) => (
                   <li key={idx}>
@@ -1059,9 +1062,9 @@ const App: React.FC = () => {
       
       <button 
         onClick={() => setStatus(AppStatus.IDLE)}
-        className="mt-12 flex items-center gap-2 text-slate-500 hover:text-red-500 bg-slate-100 px-6 py-3 rounded-2xl transition-all font-semibold text-sm hover:bg-red-50"
+        className="mt-12 flex items-center gap-2 text-slate-900 bg-white shadow-xl shadow-slate-200/50 px-8 py-4 rounded-2xl transition-all font-bold text-sm hover:bg-slate-50 active:scale-95 border border-slate-100"
       >
-        <X className="w-4 h-4" /> Cancelar búsqueda
+        <X className="w-5 h-5" /> Cancelar búsqueda
       </button>
     </div>
   );
@@ -1206,7 +1209,7 @@ const App: React.FC = () => {
                    <h2 className="text-2xl font-bold text-white truncate max-w-[200px]">{activeAlarm?.target?.name || 'Buscando...'}</h2>
                 </div>
                 <div className="text-right">
-                    <div className="text-4xl font-black tracking-tight text-white tabular-nums">
+                    <div className="text-4xl font-black tracking-tight text-white tabular-nums drop-shadow-[0_0_15px_rgba(129,140,248,0.8)]">
                         {currentDistance !== null ? formatDistance(currentDistance) : '...'}
                     </div>
                     <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Distancia</p>
