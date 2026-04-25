@@ -1,29 +1,189 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { LocationInfo, Coordinates, AlarmIntensity } from "../types";
+import { LocationInfo, Coordinates, AlarmIntensity, AgentMission, TripMood } from "../types";
 
 const getAi = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error("Error crítico: VITE_GEMINI_API_KEY no está definida en las variables de entorno.");
-    throw new Error("Error de configuración para la persona usuaria: La clave de Gemini no está configurada.");
+    console.warn("GEMINI_API_KEY no detectada. NapNav funcionará en modo degradado.");
+    return null;
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI(apiKey);
+};
+
+// --- Mock Implementations for Function Calling ---
+const get_calendar_events = async () => {
+  // Mock data for "Grupo Rhea" in UTEC
+  return [
+    { event: "Entrega Final Rhea", date: "Martes", time: "18:00", location: "UTEC Minas" },
+    { event: "Examen de Algoritmos", date: "Miércoles", time: "10:00", location: "UTEC Minas" }
+  ];
+};
+
+const check_weather = async (city: string) => {
+  if (city.toLowerCase().includes("minas")) return "Lluvioso, posibles retrasos de 10-15 minutos.";
+  return "Despejado.";
+};
+
+const calculate_eta = async (current: string, dest: string, mode: string) => {
+  // Random dynamic ETA
+  const baseMinutes = 45;
+  const variance = Math.floor(Math.random() * 15);
+  const totalMinutes = baseMinutes + variance;
+  const now = new Date();
+  const eta = new Date(now.getTime() + totalMinutes * 60000);
+  return { 
+    minutes: totalMinutes, 
+    eta_time: eta.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    status: totalMinutes > 50 ? "delayed" : "on_time"
+  };
+};
+
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: "get_calendar_events",
+        description: "Busca fechas de exámenes o entregas en el calendario de la persona usuaria para el grupo Rhea.",
+      },
+      {
+        name: "check_weather",
+        description: "Consulta el clima para prever retrasos por lluvia en una ciudad específica.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            city: { type: Type.STRING, description: "Ciudad para consultar el clima." },
+          },
+          required: ["city"],
+        },
+      },
+      {
+        name: "send_whatsapp_notification",
+        description: "Solicita enviar una notificación al grupo de estudio si hay demoras.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            group: { type: Type.STRING, description: "Nombre del grupo (ej: Rhea)." },
+            message: { type: Type.STRING, description: "Mensaje a enviar." },
+          },
+          required: ["group", "message"],
+        },
+      },
+      {
+        name: "calculate_eta",
+        description: "Estima el tiempo de llegada dinámico basado en tráfico y clima.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            current_location: { type: Type.STRING },
+            destination: { type: Type.STRING },
+            transport_mode: { type: Type.STRING, description: "bus, car o walking" },
+          },
+          required: ["current_location", "destination", "transport_mode"],
+        },
+      },
+    ],
+  },
+];
+
+const functionHandlers: any = {
+  get_calendar_events,
+  check_weather,
+  calculate_eta,
+  send_whatsapp_notification: async (args: any) => {
+    return { success: true, status: "pending_confirmation", message: `Notificación para ${args.group} preparada.` };
+  }
+};
+
+export const chatWithAgent = async (message: string, history: any[] = []) => {
+  const ai = getAi();
+  if (!ai) throw new Error("AI no disponible");
+  const model = ai.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    tools: tools,
+  });
+
+  const chat = model.startChat({
+    history: history,
+    systemInstruction: `Eres NapNav, un Agente Autónomo de Movilidad empático y proactivo. 
+    Tu misión es gestionar los viajes de la persona usuaria, previendo retrasos y coordinando con su calendario (especialmente para el grupo 'Rhea' en UTEC).
+    Usa lenguaje inclusivo y no sexista (ej: 'persona usuaria', 'quienes integran el grupo').
+    
+    Cuando el usuario te diga algo como "Tengo que ir a la UTEC en Minas el martes para la entrega de Rhea", debes:
+    1. Consultar el calendario para confirmar la hora.
+    2. Verificar el clima.
+    3. Estimar el ETA.
+    4. Informar a la persona usuaria y, si el ETA > hora del evento + 5 min, sugerir avisar al grupo.
+    
+    Si una API falla, maneja la frustración con empatía.`
+  });
+
+  let result = await chat.sendMessage(message);
+  let response = result.response;
+  
+  // Handle up to 5 consecutive tool calls
+  for (let i = 0; i < 5; i++) {
+    const call = response.functionCalls()?.[0];
+    if (!call) break;
+
+    const handler = functionHandlers[call.name];
+    if (handler) {
+      const toolResult = await handler(call.args);
+      result = await chat.sendMessage([
+        {
+          functionResponse: {
+            name: call.name,
+            response: toolResult,
+          },
+        },
+      ]);
+      response = result.response;
+    } else {
+      break;
+    }
+  }
+
+  return {
+    text: response.text(),
+    history: await chat.getHistory()
+  };
+};
+
+export const extractMissionData = async (query: string): Promise<AgentMission> => {
+  const ai = getAi();
+  if (!ai) throw new Error("AI no disponible");
+  const model = ai.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+  });
+  const response = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: `Extrae los datos de misión de: "${query}".
+    Devuelve JSON con: destination, date, context. Si no los hay, devuelve strings vacíos.` }]}],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          destination: { type: Type.STRING },
+          date: { type: Type.STRING },
+          context: { type: Type.STRING },
+        },
+        required: ["destination", "date", "context"],
+      }
+    }
+  });
+
+  return JSON.parse(response.response.text()) as AgentMission;
 };
 
 /**
  * Processes a natural language query to find a specific location.
  */
 export const findLocation = async (query: string): Promise<LocationInfo> => {
-  const response = await getAi().models.generateContent({
-    model: 'gemini-3.1-flash-lite-preview',
-    contents: `Extrae la ubicación de la siguiente consulta: "${query}".
-    Devuelve un objeto JSON con:
-    - lat: Latitud (número)
-    - lng: Longitud (número)
-    - name: Nombre corto del lugar
-    - address: Dirección legible en Montevideo, Uruguay.
-    Si la ubicación es ambigua, asume que está en Montevideo.`,
-    config: {
+  const ai = getAi();
+  if (!ai) throw new Error("AI no disponible");
+  
+  const model = ai.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    generationConfig: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -38,17 +198,29 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
     },
   });
 
-  if (!response.text) {
+  const response = await model.generateContent(`Extrae la ubicación de la siguiente consulta: "${query}".
+    Devuelve un objeto JSON con:
+    - lat: Latitud (número)
+    - lng: Longitud (número)
+    - name: Nombre corto del lugar
+    - address: Dirección legible en Montevideo, Uruguay.
+    Si la ubicación es ambigua, asume que está en Montevideo.`);
+
+  const text = response.response.text();
+  if (!text) {
     throw new Error("No se pudo resolver la ubicación");
   }
 
-  return JSON.parse(response.text) as LocationInfo;
+  return JSON.parse(text) as LocationInfo;
 };
 
 /**
  * Provides autocomplete suggestions based on user context.
  */
 export const getPlaceSuggestions = async (query: string, userLocation: Coordinates | null): Promise<string[]> => {
+  const ai = getAi();
+  if (!ai) return [];
+
   let contextInstruction = "";
   
   if (userLocation) {
@@ -58,25 +230,16 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
       RANKING PRIORITY:
       1. HIGHEST PRIORITY: Places matching the query strictly within a 5km radius of the User Location.
       2. SECONDARY PRIORITY: Places matching the query within a 50km radius.
-      3. Do NOT suggest places further than 50km unless the query explicitly includes a specific city name implying a long-distance search.
       
       Sort the results so the closest places appear first.
     `;
   } else {
-    contextInstruction = "User location unknown. Provide general global suggestions.";
+    contextInstruction = "User location unknown. Provide general suggestions for Montevideo.";
   }
   
-  const response = await getAi().models.generateContent({
-    model: 'gemini-3.1-flash-lite-preview',
-    contents: `
-      Act as a location search autocomplete engine for a local travel alarm app.
-      Query: "${query}"
-      ${contextInstruction}
-      
-      Return 5 distinct, relevant location names or addresses (in Spanish).
-      Return ONLY a JSON array of strings.
-    `,
-    config: {
+  const model = ai.getGenerativeModel({
+    model: 'gemini-1.5-flash',
+    generationConfig: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -85,9 +248,19 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
     }
   });
 
-  if (!response.text) return [];
+  const response = await model.generateContent(`
+      Act as a location search autocomplete engine for a local travel alarm app.
+      Query: "${query}"
+      ${contextInstruction}
+      
+      Return 5 distinct, relevant location names or addresses (in Spanish).
+      Return ONLY a JSON array of strings.
+    `);
+
+  const text = response.response.text();
+  if (!text) return [];
   try {
-    return JSON.parse(response.text) as string[];
+    return JSON.parse(text) as string[];
   } catch (e) {
     return [];
   }
@@ -102,57 +275,31 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export const generateAlarmAudio = async (locationName: string, intensity: AlarmIntensity = 'normal'): Promise<string> => {
   const cacheKey = `${locationName}_${intensity}`;
   
-  // 1. Audio Cache: Check if we already generated a message for this location and intensity
   if (audioCache[cacheKey]) {
-    console.log(`[Cache Hit] Usando mensaje guardado para: ${cacheKey}`);
     return audioCache[cacheKey];
   }
 
-  // 2. Optimización de Prompt: Más corto y directo para ahorrar tokens y tiempo
+  const ai = getAi();
+  if (!ai) return `¡Llegaste a ${locationName}!`;
+
+  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
   const prompt = `Genera un mensaje corto (1 oración) para TTS en Español Rioplatense al llegar a "${locationName}". Tono: ${intensity} (soft=amable, normal=directo, intense=urgente/mayúsculas). Solo el texto.`;
 
   const maxRetries = 2;
   let attempt = 0;
 
-  // 3. Retry Strategy con Exponential Backoff
   while (attempt <= maxRetries) {
     try {
-      const response = await getAi().models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
-        contents: prompt,
-      });
-
-      const result = response.text?.trim() || `¡Llegaste a ${locationName}!`;
-      
-      // Guardar en caché para futuras alarmas en el mismo lugar
+      const response = await model.generateContent(prompt);
+      const result = response.response.text()?.trim() || `¡Llegaste a ${locationName}!`;
       audioCache[cacheKey] = result;
       return result;
-      
     } catch (error: any) {
       attempt++;
-      
-      // 4. Verificación de Cuota: Log detallado para QA
-      const statusCode = error?.status || error?.response?.status || 'UNKNOWN';
-      const errorMessage = error?.message || 'Sin mensaje de error';
-      console.error(`[QA Log] Error Gemini API (Intento ${attempt}/${maxRetries + 1}): Código ${statusCode} - ${errorMessage}`);
-
-      const isRetryable = 
-        statusCode === 503 || 
-        statusCode === 429 || 
-        errorMessage.includes('503') || 
-        errorMessage.includes('429') || 
-        errorMessage.includes('UNAVAILABLE') || 
-        errorMessage.includes('overloaded');
-
-      if (isRetryable && attempt <= maxRetries) {
-        const waitTime = Math.pow(2, attempt) * 500; // 1000ms, 2000ms
-        console.log(`[Retry] Servidor saturado. Reintentando en ${waitTime}ms...`);
-        await delay(waitTime);
-      } else if (isRetryable) {
-        console.warn("[Fallback] Servidor saturado tras reintentos. Usando alerta básica.");
-        return "FALLBACK_BEEP";
+      const statusCode = error?.status || 'UNKNOWN';
+      if (statusCode === 429 && attempt <= maxRetries) {
+        await delay(Math.pow(2, attempt) * 500);
       } else {
-        // Si es otro tipo de error (ej. 400 Bad Request), no reintentamos y devolvemos texto por defecto
         return `¡Llegaste a ${locationName}!`;
       }
     }

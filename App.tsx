@@ -3,15 +3,20 @@ import {
   MapPin, Navigation, Bell, Search, StopCircle, Volume2, 
   AlertCircle, RefreshCw, Loader2, ArrowLeft, X, User, 
   Settings, Heart, Trash2, History, ChevronRight, Zap, Smartphone, Check,
-  Moon, Sun, Key
+  Moon, Sun, Key, MessageSquare
 } from 'lucide-react';
-import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
-import { findLocation, generateAlarmAudio, getPlaceSuggestions } from './services/gemini';
+import { useAgent } from './contexts/AgentContext';
+import { AgentChat } from './components/AgentChat';
+import { motion, AnimatePresence } from 'framer-motion';
+import { generateAlarmAudio, getPlaceSuggestions } from './services/gemini';
 import { calculateDistance, formatDistance } from './utils/geo';
-import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity } from './types';
+import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity, PendingAction } from './types';
 import MapDisplay from './components/MapDisplay';
 
 const App: React.FC = () => {
+  // Agent Context
+  const { mission, pendingActions, addPendingAction, removePendingAction, mood, setMood } = useAgent();
+
   // State
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [query, setQuery] = useState('');
@@ -249,6 +254,33 @@ const App: React.FC = () => {
       setQuery('');
     }
   }, [status]);
+
+  // Proactive Agent Monitoring
+  useEffect(() => {
+    if (mission?.eta && mission?.eventTime) {
+      // Simple parse for time format (HH:MM)
+      const parseTime = (t: string) => {
+        const parts = t.match(/(\d+):(\d+)/);
+        if (!parts) return null;
+        return parseInt(parts[1]) * 60 + parseInt(parts[2]);
+      };
+
+      const etaVal = parseTime(mission.eta);
+      const eventVal = parseTime(mission.eventTime);
+
+      if (etaVal !== null && eventVal !== null && etaVal > eventVal + 5) {
+        const alreadyNotified = pendingActions.some(a => a.id === 'eta-delay-alert');
+        if (!alreadyNotified) {
+          addPendingAction({
+            id: 'eta-delay-alert',
+            type: 'notification',
+            description: `Se detectó una demora. Llegada estimada: ${mission.eta}. El evento inicia: ${mission.eventTime}. ¿Deseas avisar a quienes integran el grupo Rhea?`,
+            data: { group: mission.context || 'Rhea' }
+          });
+        }
+      }
+    }
+  }, [mission, pendingActions, addPendingAction]);
 
   // --- Logic Functions ---
 
@@ -694,61 +726,55 @@ const App: React.FC = () => {
           NapNav
         </h1>
         <p className="text-slate-500 font-medium text-center mb-12 max-w-xs leading-relaxed">
-          Duerme tranquilo. Nosotros te despertamos antes de que te pases.
+          NapNav: Tu secretaria personal de movilidad. Te cuidamos mientras descansas.
         </p>
         
-        <div className="w-full relative group max-w-md">
-          <form onSubmit={handleSearch} className="w-full relative z-20">
-            {/* Added shadow glow effect */}
-            <div className="absolute inset-0 bg-indigo-500/20 rounded-[2rem] blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
-            
-            <div className="relative overflow-hidden rounded-[2rem] p-px bg-gradient-to-b from-slate-200 to-slate-100 focus-within:from-indigo-400 focus-within:to-violet-400 transition-all shadow-xl shadow-slate-200/50">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
-                placeholder="Buscá tu destino en Montevideo..."
-                className="w-full pl-14 pr-32 py-5 rounded-[1.95rem] bg-white transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium"
-              />
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 w-6 h-6 pointer-events-none transition-colors" />
-              
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                {isSuggesting && (
-                  <Loader2 className="text-indigo-500 w-5 h-5 animate-spin" />
-                )}
-                <button 
-                    type="submit" 
-                    disabled={!query}
-                    className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm disabled:opacity-30 hover:bg-indigo-600 hover:shadow-lg hover:shadow-indigo-500/30 transition-all active:scale-95"
-                >
-                    Ir
-                </button>
-              </div>
-            </div>
-          </form>
+        <AgentChat onLocationFound={(location) => {
+          setDraftAlarm({
+            target: location,
+            radius: 500,
+            alarmMessage: `Hola,NapNav te avisa que estamos llegando a ${location.name}. Todo bajo control según tu plan.`,
+            recurrence: { type: 'once' }
+          });
+          setStatus(AppStatus.CONFIRMING);
+        }} />
 
-          {/* Autocomplete */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-[calc(100%+12px)] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden z-30 animate-in fade-in slide-in-from-top-4 duration-300 ring-8 ring-slate-900/5">
-              <ul className="divide-y divide-slate-50">
-                {suggestions.map((item, idx) => (
-                  <li key={idx}>
-                    <button
-                      onClick={() => handleSuggestionClick(item)}
-                      className="w-full text-left px-5 py-4 hover:bg-indigo-50/50 transition-colors flex items-center gap-4 text-slate-600 hover:text-indigo-700"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                      </div>
-                      <span className="truncate font-medium">{item.display_name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+        {/* Global Agent Alerts Overlay */}
+        <AnimatePresence>
+          {pendingActions.length > 0 && (
+            <div className="fixed bottom-24 left-6 right-6 z-50 space-y-3">
+              {pendingActions.map(action => (
+                <div key={action.id} className="bg-white/95 backdrop-blur-xl border border-indigo-100 p-4 rounded-2xl shadow-2xl flex items-start gap-4">
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-700 leading-tight mb-2">
+                      {action.description}
+                    </p>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          alert(`Enviando notificación a ${action.data.group}...`);
+                          removePendingAction(action.id);
+                        }}
+                        className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+                      >
+                        Confirmar Envío
+                      </button>
+                      <button 
+                        onClick={() => removePendingAction(action.id)}
+                        className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold"
+                      >
+                        Ignorar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-        </div>
+        </AnimatePresence>
 
         {/* Quick Access UI - Horizontal Scroll */}
         {(savedPlaces.length > 0 || history.length > 0) && (

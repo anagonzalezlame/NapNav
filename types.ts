@@ -49,3 +49,27 @@ export interface SavedPlace extends LocationInfo {
   defaultRadius?: number;
   dateAdded: number;
 }
+
+export interface AgentMission {
+  destination: string;
+  date: string;
+  context: string;
+  eta?: string;
+  eventTime?: string;
+}
+
+export type TripMood = 'relaxed' | 'focused' | 'hurried' | 'emergency';
+
+export interface PendingAction {
+  id: string;
+  type: 'notification' | 'route_change' | 'alarm_update';
+  description: string;
+  data: any;
+}
+
+export interface AgentState {
+  mission: AgentMission | null;
+  mood: TripMood;
+  pendingActions: PendingAction[];
+  isThinking: boolean;
+}
