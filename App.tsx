@@ -660,10 +660,11 @@ const App: React.FC = () => {
     <div className="relative flex flex-col items-center justify-center min-h-[100dvh] overflow-hidden bg-slate-50">
       {/* Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <MapDisplay center={{ lat: -34.9011, lng: -56.1645 }} zoom={13} />
-        {/* Stronger blur and darker overlay for readability */}
-        <div className="absolute inset-0 bg-slate-50/70 backdrop-blur-md"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 via-transparent to-slate-50/90"></div>
+        <div className="absolute inset-0 opacity-40 grayscale-[0.8] brightness-105">
+          <MapDisplay center={{ lat: -34.9011, lng: -56.1645 }} zoom={13} />
+        </div>
+        {/* Improved overlay for legibility */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/95 via-slate-50/75 to-slate-50/95 backdrop-blur-sm"></div>
       </div>
 
       {/* Top Bar */}
@@ -708,7 +709,7 @@ const App: React.FC = () => {
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
                 placeholder="Buscá tu destino en Montevideo..."
-                className="w-full pl-14 pr-16 py-5 rounded-[1.95rem] bg-white transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium"
+                className="w-full pl-14 pr-32 py-5 rounded-[1.95rem] bg-white transition-all outline-none text-lg text-slate-800 placeholder:text-slate-400 font-medium"
               />
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 w-6 h-6 pointer-events-none transition-colors" />
               
