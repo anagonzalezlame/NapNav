@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { LocationInfo, Coordinates, AlarmIntensity, AgentMission, TripMood } from "../types";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
+import { LocationInfo, Coordinates, AlarmIntensity, AgentMission } from "../types";
 
 const getAi = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -25,7 +25,6 @@ const check_weather = async (city: string) => {
 };
 
 const calculate_eta = async (current: string, dest: string, mode: string) => {
-  // Random dynamic ETA
   const baseMinutes = 45;
   const variance = Math.floor(Math.random() * 15);
   const totalMinutes = baseMinutes + variance;
@@ -97,14 +96,15 @@ const functionHandlers: any = {
 export const chatWithAgent = async (message: string, history: any[] = []) => {
   const ai = getAi();
   if (!ai) throw new Error("AI no disponible");
-  const model = ai.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    tools: tools,
-  });
 
-  const chat = model.startChat({
-    history: history,
-    systemInstruction: `Eres NapNav, un Agente Autónomo de Movilidad empático y proactivo. 
+  // Modern way: use ai.models.generateContent
+  // History needs to be formatted for the SDK
+  const formattedHistory = history.map(h => ({
+    role: h.role === 'model' ? 'model' : 'user',
+    parts: h.parts ? h.parts : [{ text: h.text }]
+  }));
+
+  const systemInstruction = `Eres NapNav, un Agente Autónomo de Movilidad empático y proactivo. 
     Tu misión es gestionar los viajes de la persona usuaria, previendo retrasos y coordinando con su calendario (especialmente para el grupo 'Rhea' en UTEC).
     Usa lenguaje inclusivo y no sexista (ej: 'persona usuaria', 'quienes integran el grupo').
     
@@ -114,50 +114,76 @@ export const chatWithAgent = async (message: string, history: any[] = []) => {
     3. Estimar el ETA.
     4. Informar a la persona usuaria y, si el ETA > hora del evento + 5 min, sugerir avisar al grupo.
     
-    Si una API falla, maneja la frustración con empatía.`
-  });
+    Si una API falla, maneja la frustración con empatía.`;
 
-  let result = await chat.sendMessage(message);
-  let response = result.response;
-  
-  // Handle up to 5 consecutive tool calls
-  for (let i = 0; i < 5; i++) {
-    const call = response.functionCalls()?.[0];
-    if (!call) break;
+  let contents = [...formattedHistory, { role: 'user', parts: [{ text: message }] }];
 
-    const handler = functionHandlers[call.name];
-    if (handler) {
-      const toolResult = await handler(call.args);
-      result = await chat.sendMessage([
-        {
-          functionResponse: {
-            name: call.name,
-            response: toolResult,
-          },
-        },
-      ]);
-      response = result.response;
-    } else {
-      break;
+  try {
+    let response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction,
+        tools: tools,
+      }
+    });
+
+    // Handle tool calls loop (limited to 5)
+    for (let i = 0; i < 5; i++) {
+        const fCalls = response.functionCalls;
+        if (!fCalls || fCalls.length === 0) break;
+
+        const results = await Promise.all(fCalls.map(async (call) => {
+            const handler = functionHandlers[call.name];
+            if (handler) {
+                const res = await handler(call.args);
+                return {
+                    functionResponse: {
+                        name: call.name,
+                        response: res
+                    }
+                };
+            }
+            return null;
+        }));
+
+        const filteredResults = results.filter(r => r !== null);
+        if (filteredResults.length === 0) break;
+
+        // Append the tool call response and original call to history
+        contents.push({ role: 'model', parts: fCalls.map(f => ({ functionCall: f })) });
+        contents.push({ role: 'user', parts: filteredResults as any });
+
+        response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: contents,
+            config: {
+                systemInstruction: systemInstruction,
+                tools: tools,
+            }
+        });
     }
-  }
 
-  return {
-    text: response.text(),
-    history: await chat.getHistory()
-  };
+    return {
+      text: response.text || "No obtuve una respuesta clara.",
+      history: contents // Not perfect but keeps the context for manual tracking if needed
+    };
+
+  } catch (error) {
+    console.error("Gemini Agent Error:", error);
+    throw error;
+  }
 };
 
 export const extractMissionData = async (query: string): Promise<AgentMission> => {
   const ai = getAi();
   if (!ai) throw new Error("AI no disponible");
-  const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-  });
-  const response = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: `Extrae los datos de misión de: "${query}".
-    Devuelve JSON con: destination, date, context. Si no los hay, devuelve strings vacíos.` }]}],
-    generationConfig: {
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Extrae los datos de misión de: "${query}".
+    Devuelve JSON con: destination, date, context. Si no los hay, devuelve strings vacíos.`,
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -171,7 +197,7 @@ export const extractMissionData = async (query: string): Promise<AgentMission> =
     }
   });
 
-  return JSON.parse(response.response.text()) as AgentMission;
+  return JSON.parse(response.text || "{}") as AgentMission;
 };
 
 /**
@@ -181,9 +207,16 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
   const ai = getAi();
   if (!ai) throw new Error("AI no disponible");
   
-  const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    generationConfig: {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Extrae la ubicación de la siguiente consulta: "${query}".
+    Devuelve un objeto JSON con:
+    - lat: Latitud (número)
+    - lng: Longitud (número)
+    - name: Nombre corto del lugar
+    - address: Dirección legible en Montevideo, Uruguay.
+    Si la ubicación es ambigua, asume que está en Montevideo.`,
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -198,15 +231,7 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
     },
   });
 
-  const response = await model.generateContent(`Extrae la ubicación de la siguiente consulta: "${query}".
-    Devuelve un objeto JSON con:
-    - lat: Latitud (número)
-    - lng: Longitud (número)
-    - name: Nombre corto del lugar
-    - address: Dirección legible en Montevideo, Uruguay.
-    Si la ubicación es ambigua, asume que está en Montevideo.`);
-
-  const text = response.response.text();
+  const text = response.text;
   if (!text) {
     throw new Error("No se pudo resolver la ubicación");
   }
@@ -237,9 +262,17 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
     contextInstruction = "User location unknown. Provide general suggestions for Montevideo.";
   }
   
-  const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    generationConfig: {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `
+      Act as a location search autocomplete engine for a local travel alarm app.
+      Query: "${query}"
+      ${contextInstruction}
+      
+      Return 5 distinct, relevant location names or addresses (in Spanish).
+      Return ONLY a JSON array of strings.
+    `,
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -248,16 +281,7 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
     }
   });
 
-  const response = await model.generateContent(`
-      Act as a location search autocomplete engine for a local travel alarm app.
-      Query: "${query}"
-      ${contextInstruction}
-      
-      Return 5 distinct, relevant location names or addresses (in Spanish).
-      Return ONLY a JSON array of strings.
-    `);
-
-  const text = response.response.text();
+  const text = response.text;
   if (!text) return [];
   try {
     return JSON.parse(text) as string[];
@@ -282,7 +306,6 @@ export const generateAlarmAudio = async (locationName: string, intensity: AlarmI
   const ai = getAi();
   if (!ai) return `¡Llegaste a ${locationName}!`;
 
-  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
   const prompt = `Genera un mensaje corto (1 oración) para TTS en Español Rioplatense al llegar a "${locationName}". Tono: ${intensity} (soft=amable, normal=directo, intense=urgente/mayúsculas). Solo el texto.`;
 
   const maxRetries = 2;
@@ -290,8 +313,11 @@ export const generateAlarmAudio = async (locationName: string, intensity: AlarmI
 
   while (attempt <= maxRetries) {
     try {
-      const response = await model.generateContent(prompt);
-      const result = response.response.text()?.trim() || `¡Llegaste a ${locationName}!`;
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      const result = response.text?.trim() || `¡Llegaste a ${locationName}!`;
       audioCache[cacheKey] = result;
       return result;
     } catch (error: any) {
