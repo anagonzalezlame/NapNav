@@ -898,7 +898,7 @@ const App: React.FC = () => {
 
         {/* Section: Locations */}
         <section>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 ml-2">Favoritos</h3>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 ml-2">Mis Lugares</h3>
           {savedPlaces.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
               <Heart className="w-8 h-8 text-slate-300 mx-auto mb-2" />

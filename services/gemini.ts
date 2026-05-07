@@ -7,7 +7,7 @@ const getAi = () => {
     console.warn("GEMINI_API_KEY no detectada. NapNav funcionará en modo degradado.");
     return null;
   }
-  return new GoogleGenAI(apiKey);
+  return new GoogleGenAI({ apiKey });
 };
 
 // --- Mock Implementations for Function Calling ---

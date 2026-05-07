@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAgent } from '../contexts/AgentContext';
-import { chatWithAgent, extractMissionData, findLocation } from '../services/gemini';
-import { Search, Send, Loader2, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { chatWithAgent, extractMissionData, findLocation, getPlaceSuggestions } from '../services/gemini';
+import { Search, Send, Loader2, Sparkles, AlertCircle, CheckCircle2, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
@@ -18,7 +18,11 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const suggestionTimeout = useRef<any>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,17 +32,59 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isThinking) return;
+  // Autocomplete Logic
+  useEffect(() => {
+    if (suggestionTimeout.current) clearTimeout(suggestionTimeout.current);
 
-    const userMessage = input.trim();
+    if (input.trim().length > 3 && !isThinking) {
+      suggestionTimeout.current = setTimeout(async () => {
+        setIsSuggesting(true);
+        try {
+          const res = await getPlaceSuggestions(input, null);
+          setSuggestions(res);
+          if (res.length > 0) setShowSuggestions(true);
+        } catch (e) {
+          console.error("Error fetching suggestions", e);
+        } finally {
+          setIsSuggesting(false);
+        }
+      }, 600);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [input, isThinking]);
+
+  const handleSelectSuggestion = async (suggestion: string) => {
+    setInput(suggestion);
+    setShowSuggestions(false);
+    await processInput(suggestion);
+  };
+
+  const processInput = async (userMessage: string) => {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setIsThinking(true);
+    setIsOpen(true);
 
     try {
-      // 1. Process with Gemini Agent (Function Calling)
+      // 1. Proactively try to geocode if it looks like a direct location search
+      if (userMessage.length < 50) {
+        try {
+          const location = await findLocation(userMessage);
+          onLocationFound(location);
+          setMessages(prev => [...prev, { 
+            role: 'model', 
+            text: `¡Entendido! He configurado el destino en ${location.name}. ¿Deseas que coordine algo más para este viaje?` 
+          }]);
+          setIsThinking(false);
+          return;
+        } catch (err) {
+          // Fallback to agent if direct geocode fails
+        }
+      }
+
+      // 2. Process with Gemini Agent (Function Calling)
       const result = await chatWithAgent(userMessage, messages.map(m => ({ 
         role: m.role, 
         parts: [{ text: m.text }] 
@@ -46,12 +92,11 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
 
       setMessages(prev => [...prev, { role: 'model', text: result.text }]);
 
-      // 2. Proactively try to extract mission data if not yet complete
+      // 3. Proactively try to extract mission data
       if (!mission || !mission.destination) {
         const extracted = await extractMissionData(userMessage);
         if (extracted.destination) {
           setMission(extracted);
-          // Try to geocode the destination
           try {
             const location = await findLocation(extracted.destination);
             onLocationFound(location);
@@ -72,6 +117,12 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isThinking) return;
+    await processInput(input.trim());
+  };
+
   return (
     <div className="w-full max-w-md mx-auto relative z-30">
       {/* Search/Chat Trigger */}
@@ -90,20 +141,51 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onFocus={() => setIsOpen(true)}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
                 placeholder="¿A dónde vas hoy? (ej: UTEC Minas martes)"
                 className="flex-1 py-3 px-2 outline-none text-slate-800 placeholder:text-slate-400 font-medium"
               />
-              <button 
-                type="submit"
-                disabled={!input.trim() || isThinking}
-                className="bg-indigo-600 text-white p-3 rounded-2xl disabled:opacity-30 hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                {isThinking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-              </button>
+              <div className="flex items-center gap-1 pr-1">
+                {isSuggesting && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+                <button 
+                  type="submit"
+                  disabled={!input.trim() || isThinking}
+                  className="bg-indigo-600 text-white p-3 rounded-2xl disabled:opacity-30 hover:bg-indigo-700 transition-all active:scale-95"
+                >
+                  {isThinking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                </button>
+              </div>
             </form>
           </div>
         </div>
+
+        {/* Autocomplete Suggestions */}
+        <AnimatePresence>
+          {showSuggestions && suggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute top-[calc(100%+8px)] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden z-40"
+            >
+              <ul className="divide-y divide-slate-50">
+                {suggestions.map((s, idx) => (
+                  <li key={idx}>
+                    <button
+                      onClick={() => handleSelectSuggestion(s)}
+                      className="w-full text-left px-5 py-4 hover:bg-indigo-50 transition-colors flex items-center gap-3 text-slate-600"
+                    >
+                      <MapPin className="w-4 h-4 text-slate-400" />
+                      <span className="truncate text-sm font-medium">{s}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Chat Display Overlay */}
@@ -115,17 +197,25 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             className="absolute top-[calc(100%+12px)] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[400px]"
           >
-            <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+            <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Agente NapNav Activo</span>
               </div>
-              {mission && (
-                <div className="flex items-center gap-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Misión: {mission.destination}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {mission && (
+                  <div className="flex items-center gap-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Misión: {mission.destination}
+                  </div>
+                )}
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                >
+                  <AlertCircle className="w-4 h-4 rotate-45" />
+                </button>
+              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[100px]">
@@ -149,7 +239,7 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
             </div>
 
             {isThinking && (
-              <div className="p-4 flex items-center gap-2 text-indigo-500 text-xs font-medium italic">
+              <div className="p-4 flex items-center gap-2 text-indigo-500 text-xs font-medium italic bg-white border-t border-slate-100">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 NapNav está coordinando tu llegada...
               </div>
