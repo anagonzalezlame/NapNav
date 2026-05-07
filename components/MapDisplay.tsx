@@ -67,12 +67,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         />
         <MapUpdater center={center} zoom={zoom} />
         
-        {currentLocation && (
+        {currentLocation ? (
           <Marker position={[currentLocation.lat, currentLocation.lng]} icon={currentLocationIcon} />
-        )}
+        ) : null}
 
-        {targetLocation && (
-          <>
+        {targetLocation ? (
+          <React.Fragment key="target-group">
             <Marker position={[targetLocation.lat, targetLocation.lng]} icon={targetLocationIcon} />
             <Circle 
               center={[targetLocation.lat, targetLocation.lng]} 
@@ -85,8 +85,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 weight: 2,
               }}
             />
-          </>
-        )}
+          </React.Fragment>
+        ) : null}
       </MapContainer>
     </div>
   );

@@ -1196,8 +1196,15 @@ const App: React.FC = () => {
 
           <div className="flex gap-4 mt-6 shrink-0">
               <button 
+                  onClick={() => setStatus(AppStatus.IDLE)}
+                  className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl text-lg font-bold hover:bg-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+              >
+                  <X className="w-6 h-6" />
+                  Cancelar
+              </button>
+              <button 
                   onClick={saveAlarm}
-                  className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 text-white py-4 rounded-2xl text-lg font-bold shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                  className="flex-[2] bg-gradient-to-r from-indigo-600 to-violet-600 text-white py-4 rounded-2xl text-lg font-bold shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
               >
                   <Check className="w-6 h-6 fill-white/20" />
                   Guardar Alarma
