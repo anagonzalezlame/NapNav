@@ -250,13 +250,13 @@ export const getPlaceSuggestions = async (query: string, userLocation: Coordinat
   
   if (userLocation) {
     contextInstruction = `
-      User Location: Lat ${userLocation.lat}, Lng ${userLocation.lng}.
+      Ubicación actual del usuario (Current Location): Lat ${userLocation.lat}, Lng ${userLocation.lng}.
       
-      RANKING PRIORITY:
-      1. HIGHEST PRIORITY: Places matching the query strictly within a 5km radius of the User Location.
-      2. SECONDARY PRIORITY: Places matching the query within a 50km radius.
+      CRITERIOS DE PRIORIZACIÓN MUY IMPORTANTES:
+      1. PRIMERA PRIORIDAD: Debes priorizar y devolver de forma estricta resultados que se encuentren dentro de un radio de 5 kilómetros de la ubicación actual del usuario.
+      2. SEGUNDA PRIORIDAD: SOLO si no encuentras suficientes resultados relevantes dentro del radio de 5 kilómetros, puedes expandir la búsqueda hacia un radio de hasta 50 kilómetros.
       
-      Sort the results so the closest places appear first.
+      Ordena los resultados de los más cercanos a los más lejanos.
     `;
   } else {
     contextInstruction = "User location unknown. Provide general suggestions for Montevideo.";

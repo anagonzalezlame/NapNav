@@ -127,14 +127,14 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
     <div className="w-full max-w-md mx-auto relative z-30">
       {/* Search/Chat Trigger */}
       <div className="relative group">
-        <div className="absolute inset-0 bg-indigo-500/20 rounded-[2rem] blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
-        <div className="relative overflow-hidden rounded-[2rem] p-px bg-gradient-to-b from-slate-200 to-slate-100 focus-within:from-indigo-400 focus-within:to-violet-400 transition-all shadow-xl shadow-slate-200/50">
-          <div className="bg-white rounded-[1.95rem] flex items-center p-2">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/30 to-violet-500/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div className="relative overflow-hidden rounded-[2.5rem] p-[2px] bg-gradient-to-r from-slate-200 to-slate-100 focus-within:from-indigo-500 focus-within:to-violet-500 transition-all duration-300 shadow-2xl shadow-indigo-900/5">
+          <div className="bg-white/95 backdrop-blur-xl rounded-[2.4rem] flex items-center p-2.5">
             <button 
               onClick={() => setIsOpen(!isOpen)}
-              className="p-3 text-slate-400 hover:text-indigo-500 transition-colors"
+              className="p-3 text-indigo-400 hover:text-indigo-600 transition-colors bg-indigo-50/50 hover:bg-indigo-50 rounded-full mr-2"
             >
-              <Sparkles className={`w-6 h-6 ${isThinking ? 'animate-pulse text-indigo-500' : ''}`} />
+              <Sparkles className={`w-6 h-6 ${isThinking ? 'animate-pulse text-indigo-600' : ''}`} />
             </button>
             <form onSubmit={handleSubmit} className="flex-1 flex items-center">
               <input
@@ -144,17 +144,24 @@ export const AgentChat = ({ onLocationFound }: AgentChatProps) => {
                 onFocus={() => {
                   if (suggestions.length > 0) setShowSuggestions(true);
                 }}
-                placeholder="¿A dónde vas hoy? (ej: UTEC Minas martes)"
-                className="flex-1 py-3 px-2 outline-none text-slate-800 placeholder:text-slate-400 font-medium"
+                placeholder="¿A dónde vas hoy? (ej: UTEC Minas)"
+                className="flex-1 py-3 px-2 outline-none text-slate-800 placeholder:text-slate-400 font-bold bg-transparent text-lg"
               />
-              <div className="flex items-center gap-1 pr-1">
-                {isSuggesting && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+              <div className="flex items-center gap-2 px-1">
+                {isSuggesting && <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />}
                 <button 
                   type="submit"
                   disabled={!input.trim() || isThinking}
-                  className="bg-indigo-600 text-white p-3 rounded-2xl disabled:opacity-30 hover:bg-indigo-700 transition-all active:scale-95"
+                  className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-3.5 rounded-[1.8rem] disabled:opacity-50 hover:shadow-lg hover:shadow-indigo-500/30 transition-all active:scale-[0.98] font-bold flex items-center gap-2"
                 >
-                  {isThinking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  {isThinking ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <span className="hidden sm:inline">Ir</span>
+                      <Send className="w-5 h-5" />
+                    </>
+                  )}
                 </button>
               </div>
             </form>

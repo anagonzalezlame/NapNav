@@ -17,6 +17,7 @@ export enum AppStatus {
   PROFILE = 'PROFILE',
   SETTINGS = 'SETTINGS',
   ALARMS_LIST = 'ALARMS_LIST',
+  ALERTS = 'ALERTS',
 }
 
 export type AlarmIntensity = 'soft' | 'normal' | 'intense';
@@ -25,6 +26,7 @@ export interface AlarmSettings {
   volume: number; // 0 to 100
   vibration: boolean;
   intensity: AlarmIntensity;
+  darkMode?: boolean;
 }
 
 export type RecurrenceType = 'once' | 'always' | 'daysOfWeek' | 'untilDate';
