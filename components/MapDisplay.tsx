@@ -72,28 +72,32 @@ const MapUpdater: React.FC<{
         }
 
         if (currentLocation && targetLocation) {
-          // Auto-centrado estricto en el usuario, calculando el recuadro para que también incluya el destino
-          const userLatLng = L.latLng(currentLocation.lat, currentLocation.lng);
-          const targetLatLng = L.latLng(targetLocation.lat, targetLocation.lng);
-          const distance = userLatLng.distanceTo(targetLatLng);
-          
-          // Calculamos radio máximo asegurando que entran destino y círculo (+ padding)
-          const maxNeededRadius = distance + radius + 200; 
-          
-          const latDelta = maxNeededRadius / 111320;
-          const lngDelta = maxNeededRadius / (40075000 * Math.cos(currentLocation.lat * Math.PI / 180) / 360);
-          
-          const bounds = L.latLngBounds(
-            [currentLocation.lat - latDelta, currentLocation.lng - lngDelta],
-            [currentLocation.lat + latDelta, currentLocation.lng + lngDelta]
-          );
-
-          // Ajustamos vista pero centrándose garantizadamente en el usuario siempre
-          const size = map.getSize();
-          if (size && size.x > 0 && size.y > 0) {
-            map.fitBounds(bounds, { animate: true, padding: [20, 20], maxZoom: 17 });
+          if (isTracking) {
+            map.setView([currentLocation.lat, currentLocation.lng], zoom, { animate: true });
           } else {
-            map.setView([currentLocation.lat, currentLocation.lng], 14);
+            // Auto-centrado estricto en el usuario, calculando el recuadro para que también incluya el destino
+            const userLatLng = L.latLng(currentLocation.lat, currentLocation.lng);
+            const targetLatLng = L.latLng(targetLocation.lat, targetLocation.lng);
+            const distance = userLatLng.distanceTo(targetLatLng);
+            
+            // Calculamos radio máximo asegurando que entran destino y círculo (+ padding)
+            const maxNeededRadius = distance + radius + 200; 
+            
+            const latDelta = maxNeededRadius / 111320;
+            const lngDelta = maxNeededRadius / (40075000 * Math.cos(currentLocation.lat * Math.PI / 180) / 360);
+            
+            const bounds = L.latLngBounds(
+              [currentLocation.lat - latDelta, currentLocation.lng - lngDelta],
+              [currentLocation.lat + latDelta, currentLocation.lng + lngDelta]
+            );
+
+            // Ajustamos vista pero centrándose garantizadamente en el usuario siempre
+            const size = map.getSize();
+            if (size && size.x > 0 && size.y > 0) {
+              map.fitBounds(bounds, { animate: true, padding: [20, 20], maxZoom: 17 });
+            } else {
+              map.setView([currentLocation.lat, currentLocation.lng], 14);
+            }
           }
           
         } else if (currentLocation) {

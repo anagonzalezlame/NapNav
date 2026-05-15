@@ -412,7 +412,8 @@ const App: React.FC = () => {
     };
     
     setHistory(prev => {
-      const filtered = prev.filter(p => p.name !== newHistoryItem.name);
+      const normalizedNewName = newHistoryItem.name?.trim().toLowerCase() || '';
+      const filtered = prev.filter(p => (p.name?.trim().toLowerCase() || '') !== normalizedNewName);
       return [newHistoryItem, ...filtered].slice(0, 5);
     });
 
@@ -883,20 +884,20 @@ const App: React.FC = () => {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pl-1">
               Destinos Rápidos
             </h3>
-            <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide snap-x">
+            <div className="flex gap-4 overflow-x-auto pb-6 -mx-6 px-6 scrollbar-hide snap-x">
               {/* Favorites First */}
               {savedPlaces.map(place => (
                 <button
                   key={`fav-${place.id}`}
                   onClick={() => selectSavedLocation(place)}
-                  className="flex-shrink-0 snap-start bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-800 dark:to-slate-800/80 p-3 pr-5 rounded-[20px] shadow-sm shadow-indigo-100/50 dark:shadow-slate-900/50 border border-indigo-100/50 dark:border-indigo-500/10 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 hover:shadow-indigo-200/50 transition-all duration-300 active:scale-95 group min-w-[170px]"
+                  className="flex-shrink-0 snap-start bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-3 pr-6 rounded-3xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.2)] border border-white/60 dark:border-slate-700/50 flex items-center gap-4 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 active:translate-y-0 active:scale-95 group w-[240px]"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-900/30 dark:to-pink-900/20 flex items-center justify-center text-rose-500 shadow-inner group-hover:from-rose-100 group-hover:to-pink-100 dark:group-hover:from-rose-900/50 transition-all duration-300">
-                    <Heart className="w-5 h-5 fill-current drop-shadow-sm" />
+                  <div className="w-14 h-14 rounded-[1.25rem] bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-500/10 dark:to-pink-500/5 flex items-center justify-center text-rose-500 shadow-inner group-hover:scale-105 transition-transform duration-300 shrink-0">
+                    <Heart className="w-6 h-6 fill-current drop-shadow-sm" />
                   </div>
-                  <div className="text-left overflow-hidden">
+                  <div className="text-left overflow-hidden min-w-0">
                     <p className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate drop-shadow-sm">{place.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{formatDistance(place.defaultRadius || 500)}</p>
+                    <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{place.address || `${formatDistance(place.defaultRadius || 500)} de radio`}</p>
                   </div>
                 </button>
               ))}
@@ -906,14 +907,14 @@ const App: React.FC = () => {
                   <button
                     key={`hist-${place.id}`}
                     onClick={() => selectSavedLocation(place)}
-                    className="flex-shrink-0 snap-start bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-800 dark:to-slate-800/50 p-3 pr-5 rounded-[20px] shadow-sm shadow-slate-200/50 dark:shadow-slate-900/50 border border-slate-100/80 dark:border-slate-700/50 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 active:scale-95 group min-w-[170px]"
+                    className="flex-shrink-0 snap-start bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-3 pr-6 rounded-3xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.2)] border border-white/60 dark:border-slate-700/50 flex items-center gap-4 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 active:translate-y-0 active:scale-95 group w-[240px]"
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800 flex items-center justify-center text-slate-500 group-hover:from-indigo-50 group-hover:to-blue-50 dark:group-hover:from-indigo-900/40 dark:group-hover:to-blue-900/20 group-hover:text-indigo-500 shadow-inner transition-all duration-300">
-                      <History className="w-5 h-5" />
+                    <div className="w-14 h-14 rounded-[1.25rem] bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:from-indigo-50 group-hover:to-blue-50 dark:group-hover:from-indigo-500/10 dark:group-hover:to-blue-500/5 group-hover:text-indigo-500 shadow-inner group-hover:scale-105 transition-transform duration-300 shrink-0">
+                      <History className="w-6 h-6 drop-shadow-sm" />
                     </div>
-                    <div className="text-left overflow-hidden">
-                      <p className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate">{place.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{formatDistance(place.defaultRadius || 500)}</p>
+                    <div className="text-left overflow-hidden min-w-0">
+                      <p className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate drop-shadow-sm">{place.name}</p>
+                      <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{place.address || `${formatDistance(place.defaultRadius || 500)} de radio`}</p>
                     </div>
                   </button>
               ))}
@@ -1009,17 +1010,17 @@ const App: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {savedPlaces.map(place => (
-                <div key={place.id} className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/80 dark:to-slate-800/40 backdrop-blur-xl p-4 rounded-3xl shadow-sm hover:shadow-md border border-slate-100 dark:border-white/5 flex items-center justify-between group hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-300">
+                <div key={place.id} className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-3xl p-4 rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_30px_rgba(0,0,0,0.3)] border border-white/80 dark:border-slate-700/50 flex items-center justify-between group hover:-translate-y-1 active:translate-y-0 active:scale-[0.98] transition-all duration-500">
                   <div 
                     onClick={() => selectSavedLocation(place)}
                     className="flex-1 flex items-center gap-4 cursor-pointer"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/30 dark:to-violet-900/20 flex items-center justify-center text-indigo-500 shrink-0 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-14 h-14 rounded-[1.25rem] bg-gradient-to-br from-indigo-50/80 to-violet-50/80 dark:from-indigo-500/10 dark:to-violet-500/10 flex items-center justify-center text-indigo-500 shrink-0 shadow-[inset_0_2px_10px_rgba(255,255,255,1)] dark:shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] group-hover:scale-105 group-hover:rotate-3 transition-transform duration-500">
                         <MapPin className="w-7 h-7 drop-shadow-sm" />
                     </div>
                     <div className="min-w-0 pr-2">
-                        <p className="font-bold text-slate-900 dark:text-white text-[15px] truncate">{place.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium">{place.address || "Coordenadas guardadas"}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-100 text-[16px] truncate">{place.name}</p>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium">{place.address || "Coordenadas guardadas"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -1056,20 +1057,20 @@ const App: React.FC = () => {
               <p className="text-slate-400 text-sm">Tus viajes recientes aparecerán aquí.</p>
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-800/80 dark:to-slate-800/40 backdrop-blur-xl rounded-3xl shadow-sm border border-slate-100 dark:border-white/5 overflow-hidden flex flex-col gap-px bg-slate-100 dark:bg-slate-800">
+            <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-3xl rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-white/60 dark:border-slate-700/30 overflow-hidden flex flex-col divide-y divide-slate-100/50 dark:divide-slate-700/50">
               {history.map(item => (
                 <div 
                     key={item.id} 
                     onClick={() => selectSavedLocation(item)}
-                    className="p-5 flex items-center justify-between cursor-pointer bg-white dark:bg-slate-800/90 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group"
+                    className="p-5 flex items-center justify-between cursor-pointer bg-transparent hover:bg-white/80 dark:hover:bg-slate-700/40 transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 text-base font-bold shadow-inner group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-12 h-12 rounded-[1.2rem] bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-700/50 dark:to-slate-800/50 flex items-center justify-center text-slate-500 dark:text-slate-400 text-base font-bold shadow-[inset_0_2px_8px_rgba(255,255,255,1)] dark:shadow-[inset_0_2px_8px_rgba(255,255,255,0.05)] group-hover:scale-105 group-hover:shadow-[0_4px_10px_rgba(0,0,0,0.05)] transition-all duration-300">
                        {item.name.charAt(0)}
                     </div>
                     <div>
-                        <p className="font-bold text-slate-900 dark:text-white text-[15px]">{item.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Radio: {formatDistance(item.defaultRadius || 500)}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-100 text-[16px]">{item.name}</p>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Radio: {formatDistance(item.defaultRadius || 500)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1261,98 +1262,108 @@ const App: React.FC = () => {
           </button>
         </div>
         
-        <div className="h-[65%] bg-white dark:bg-slate-800 dark:bg-slate-800 rounded-t-[2.5rem] -mt-10 relative z-10 px-8 pt-8 pb-6 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.05)] overflow-y-auto">
-          <div className="w-16 h-1.5 bg-slate-200 rounded-full mx-auto mb-8 shrink-0"></div>
+        <div className="h-[65%] bg-white/95 dark:bg-slate-800/95 backdrop-blur-2xl rounded-t-[3rem] -mt-10 relative z-10 px-8 pt-8 pb-6 flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.08)] border-t border-slate-100/50 dark:border-slate-700/50 overflow-y-auto">
+          <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-8 shrink-0"></div>
           
           <div className="flex justify-between items-start mb-2">
-             <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex-1 mr-4 leading-tight">{draftAlarm?.target?.name}</h2>
+             <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex-1 mr-4 leading-tight drop-shadow-sm">{draftAlarm?.target?.name}</h2>
              <button 
                 onClick={() => draftAlarm?.target && toggleSavedPlace(draftAlarm.target)}
-                className={`p-3 rounded-2xl transition-all ${isFavorite ? 'bg-rose-50 text-rose-500 shadow-inner' : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:bg-slate-100'}`}
+                className={`group relative p-3 rounded-2xl transition-all duration-300 ${isFavorite ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 shadow-inner' : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
              >
-                <Heart className={`w-7 h-7 ${isFavorite ? 'fill-current' : ''}`} />
+                <Heart className={`w-7 h-7 ${isFavorite ? 'fill-current drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]' : ''}`} />
+                <span className="absolute bottom-full right-0 mb-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
+                  {isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
+                </span>
              </button>
           </div>
           
-          <p className="text-slate-500 dark:text-slate-400 font-medium mb-6 text-sm">{draftAlarm?.target?.address}</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mb-6 text-[15px]">{draftAlarm?.target?.address}</p>
           
-          <div className="bg-indigo-50 dark:bg-indigo-900/30 p-5 rounded-3xl mb-4 border border-indigo-100/50">
-              <div className="flex justify-between items-center mb-4">
+          <div className="bg-gradient-to-br from-indigo-50/80 to-blue-50/50 dark:from-indigo-900/40 dark:to-blue-900/20 p-5 rounded-[2rem] mb-4 border border-indigo-100/60 dark:border-indigo-500/10 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-400/5 rounded-bl-[100px] pointer-events-none"></div>
+              <div className="flex justify-between items-center mb-4 relative z-10">
                   <span className="text-sm font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider">Radio de Alarma</span>
-                  <span className="text-lg font-black text-indigo-600">{formatDistance(draftAlarm?.radius || 500)}</span>
+                  <span className="text-lg font-black text-indigo-600 dark:text-indigo-300">{formatDistance(draftAlarm?.radius || 500)}</span>
               </div>
-              <input 
-                  type="range" 
-                  min="100" 
-                  max="2000" 
-                  step="100"
-                  value={draftAlarm?.radius}
-                  onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, radius: Number(e.target.value)}) : null)}
-                  className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-              />
-          </div>
-
-          <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-3xl mb-auto border border-slate-100 dark:border-slate-700">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-3">Recurrencia</span>
-              <select 
-                value={draftAlarm?.recurrence?.type || 'once'}
-                onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { type: e.target.value as any, days: e.target.value === 'daysOfWeek' ? [1,2,3,4,5] : undefined }}) : null)}
-                className="w-full bg-white dark:bg-slate-800 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl px-4 py-3 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all mb-3"
-              >
-                <option value="once">Solo una vez</option>
-                <option value="always">Siempre activa</option>
-                <option value="daysOfWeek">Días específicos</option>
-                <option value="untilDate">Hasta una fecha</option>
-              </select>
-
-              {draftAlarm?.recurrence?.type === 'daysOfWeek' && (
-                <div className="flex justify-between gap-1 mt-2">
-                  {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, idx) => {
-                    const isSelected = draftAlarm.recurrence?.days?.includes(idx);
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setDraftAlarm(prev => {
-                            if (!prev || !prev.recurrence) return prev;
-                            const days = prev.recurrence.days || [];
-                            const newDays = days.includes(idx) ? days.filter(d => d !== idx) : [...days, idx];
-                            return { ...prev, recurrence: { ...prev.recurrence, days: newDays } };
-                          });
-                        }}
-                        className={`w-10 h-10 rounded-full font-bold text-sm flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-500 text-white shadow-md' : 'bg-white dark:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-100'}`}
-                      >
-                        {day}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              {draftAlarm?.recurrence?.type === 'untilDate' && (
+              <div className="relative z-10">
                 <input 
-                  type="date"
-                  value={draftAlarm.recurrence.until || ''}
-                  onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { ...prev.recurrence!, until: e.target.value }}) : null)}
-                  className="w-full bg-white dark:bg-slate-800 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl px-4 py-3 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
+                    type="range" 
+                    min="100" 
+                    max="2000" 
+                    step="100"
+                    value={draftAlarm?.radius}
+                    onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, radius: Number(e.target.value)}) : null)}
+                    className="w-full h-2 bg-indigo-200/70 dark:bg-indigo-900/50 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-400"
                 />
-              )}
+              </div>
           </div>
 
-          <div className="flex gap-4 mt-6 shrink-0">
+          <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800/80 dark:to-slate-900/80 p-5 rounded-[2rem] mb-auto border border-slate-200/60 dark:border-slate-700/60 shadow-sm relative overflow-hidden">
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-slate-200/30 dark:bg-slate-700/20 rounded-tl-[100px] pointer-events-none"></div>
+              <div className="relative z-10">
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-3">Recurrencia</span>
+                <select 
+                  value={draftAlarm?.recurrence?.type || 'once'}
+                  onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { type: e.target.value as any, days: e.target.value === 'daysOfWeek' ? [1,2,3,4,5] : undefined }}) : null)}
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl px-4 py-3 font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all mb-3 shadow-sm"
+                >
+                  <option value="once">Solo una vez</option>
+                  <option value="always">Siempre activa</option>
+                  <option value="daysOfWeek">Días específicos</option>
+                  <option value="untilDate">Hasta una fecha</option>
+                </select>
+
+                {draftAlarm?.recurrence?.type === 'daysOfWeek' && (
+                  <div className="flex justify-between gap-1 mt-2">
+                    {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, idx) => {
+                      const isSelected = draftAlarm.recurrence?.days?.includes(idx);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setDraftAlarm(prev => {
+                              if (!prev || !prev.recurrence) return prev;
+                              const days = prev.recurrence.days || [];
+                              const newDays = days.includes(idx) ? days.filter(d => d !== idx) : [...days, idx];
+                              return { ...prev, recurrence: { ...prev.recurrence, days: newDays } };
+                            });
+                          }}
+                          className={`w-10 h-10 rounded-full font-bold text-[13px] flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30 border border-indigo-400' : 'bg-white dark:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 hover:scale-105'}`}
+                        >
+                          {day}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {draftAlarm?.recurrence?.type === 'untilDate' && (
+                  <input 
+                    type="date"
+                    value={draftAlarm.recurrence.until || ''}
+                    onChange={(e) => setDraftAlarm(prev => prev ? ({...prev, recurrence: { ...prev.recurrence!, until: e.target.value }}) : null)}
+                    className="w-full bg-white dark:bg-slate-800 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl px-4 py-3 font-bold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all shadow-sm"
+                  />
+                )}
+              </div>
+          </div>
+
+          <div className="flex gap-4 mt-6 shrink-0 relative z-10">
               <button 
                   onClick={() => setStatus(AppStatus.IDLE)}
-                  className="flex-1 bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-200 py-4 rounded-3xl text-lg font-bold hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md"
+                  className="flex-[0.8] bg-white/60 dark:bg-slate-800/60 backdrop-blur-3xl text-slate-700 dark:text-slate-300 py-4 rounded-[1.5rem] text-[16px] font-bold hover:bg-white/90 dark:hover:bg-slate-700/80 active:scale-95 transition-all duration-500 flex items-center justify-center gap-2 border border-white/80 dark:border-slate-600/50 shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_25px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.2)] hover:-translate-y-1 h-[64px]"
               >
-                  <X className="w-6 h-6 text-slate-400" />
-                  Cancelar
+                  <X className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+                  <span className="hidden sm:inline tracking-wide">Cancelar</span>
               </button>
               <button 
                   onClick={saveAlarm}
-                  className="flex-[2] bg-gradient-to-r from-indigo-500 to-violet-500 text-white py-4 rounded-3xl text-lg font-bold shadow-[0_8px_20px_rgba(99,102,241,0.3)] hover:shadow-[0_12px_25px_rgba(99,102,241,0.4)] hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3 border border-white/20"
+                  className="group flex-[2] bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:from-indigo-400 hover:via-violet-400 hover:to-fuchsia-400 text-white py-4 rounded-[1.5rem] text-[17px] font-extrabold shadow-[0_8px_25px_rgba(99,102,241,0.3)] dark:shadow-[0_8px_25px_rgba(99,102,241,0.15)] hover:shadow-[0_15px_35px_rgba(99,102,241,0.4)] dark:hover:shadow-[0_15px_35px_rgba(99,102,241,0.25)] hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-500 flex items-center justify-center gap-3 border border-indigo-300/30 dark:border-indigo-400/20 h-[64px] relative overflow-hidden"
               >
-                  <Check className="w-6 h-6 text-indigo-100" />
-                  Guardar Alarma
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                  <Navigation className="w-5 h-5 text-white fill-white drop-shadow-md group-hover:rotate-12 transition-transform duration-500" />
+                  <span className="tracking-wide drop-shadow-md">Iniciar Ruta</span>
               </button>
           </div>
         </div>
@@ -1388,7 +1399,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-right">
                     {/* Contraste y glow más tecnológicos */}
-                    <div className="text-5xl font-black tracking-tighter text-indigo-100 tabular-nums drop-shadow-[0_0_20px_rgba(129,140,248,0.9)] mb-1">
+                    <div className="text-5xl font-black tracking-tighter tabular-nums mb-1 text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-blue-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]" style={{ filter: "drop-shadow(0 0 10px rgba(56, 189, 248, 0.5))" }}>
                         {currentDistance !== null ? formatDistance(currentDistance) : '...'}
                     </div>
                     <p className="text-indigo-300/80 text-xs font-bold uppercase tracking-widest drop-shadow">Distancia</p>
