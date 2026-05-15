@@ -1,0 +1,203 @@
+608:            <button 
+609-                onClick={() => setStatus(AppStatus.IDLE)} 
+610-                className="p-3 -ml-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-colors"
+611-            >
+612-                <ArrowLeft className="w-6 h-6" />
+--
+645:                <button 
+646-                  onClick={() => {
+647-                    alert(`Accion confirmada. Procesando...`);
+648-                    removePendingAction(action.id);
+649-                  }}
+--
+654:                <button 
+655-                  onClick={() => removePendingAction(action.id)}
+656-                  className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold border border-slate-200 dark:border-slate-700 text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300"
+657-                >
+658-                  Ignorar
+--
+672:            <button 
+673-                onClick={() => setStatus(AppStatus.IDLE)} 
+674-                className="p-3 -ml-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-colors"
+675-            >
+676-                <ArrowLeft className="w-6 h-6" />
+--
+709:                <button 
+710-                  onClick={() => setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: !a.enabled } : a))}
+711-                  className={`w-14 h-8 rounded-full transition-colors relative shadow-inner shrink-0 ${alarm.enabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
+712-                >
+713-                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarm.enabled ? 'left-7' : 'left-1'}`} />
+--
+734:                <button 
+735-                  onClick={() => {
+736-                    setDraftAlarm(alarm);
+737-                    setStatus(AppStatus.CONFIRMING);
+738-                    // Also remove the old one so it gets replaced, or handle update in saveAlarm
+--
+745:                <button 
+746-                  onClick={() => setAlarms(prev => prev.filter(a => a.id !== alarm.id))}
+747-                  className="group relative p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+748-                >
+749-                  <Trash2 className="w-5 h-5" />
+--
+776:          <button 
+777-            onClick={() => setStatus(AppStatus.ALARMS_LIST)}
+778-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50 flex items-center gap-2"
+779-          >
+780-            <Bell className="w-6 h-6" />
+--
+788:          <button 
+789-            onClick={() => setStatus(AppStatus.ALERTS)}
+790-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-amber-600 border border-white/50 flex items-center gap-2"
+791-          >
+792-            <MessageSquare className="w-6 h-6" />
+--
+802:          <button 
+803-            onClick={() => setAlarmSettings({...alarmSettings, darkMode: !alarmSettings.darkMode})}
+804-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
+805-          >
+806-            {alarmSettings.darkMode ? <Moon className="w-6 h-6" /> : <Sun className="w-6 h-6" />}
+--
+811:          <button 
+812-            onClick={() => setStatus(AppStatus.PROFILE)}
+813-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
+814-          >
+815-            <User className="w-6 h-6" />
+--
+853:                    <button 
+854-                      type="submit"
+855-                      disabled={!query.trim()}
+856-                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-7 py-3.5 rounded-3xl disabled:opacity-50 hover:shadow-[0_8px_20px_rgba(99,102,241,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 font-bold flex items-center gap-2 border border-white/20"
+857-                    >
+--
+875:                    <button
+876-                      key={i}
+877-                      onClick={() => handleSuggestionClick(sug)}
+878-                      className="w-full text-left px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 border-b border-indigo-50/50 last:border-0 flex items-start gap-4 transition-colors"
+879-                    >
+--
+908:                <button
+909-                  key={`fav-${place.id}`}
+910-                  onClick={() => selectSavedLocation(place)}
+911-                  className="flex-shrink-0 snap-start bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-3 pr-6 rounded-3xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.2)] border border-white/60 dark:border-slate-700/50 flex items-center gap-4 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 active:translate-y-0 active:scale-95 group w-[240px]"
+912-                >
+--
+925:                  <button
+926-                    key={`hist-${place.id}`}
+927-                    onClick={() => selectSavedLocation(place)}
+928-                    className="flex-shrink-0 snap-start bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-3 pr-6 rounded-3xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.2)] border border-white/60 dark:border-slate-700/50 flex items-center gap-4 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.3)] hover:-translate-y-1 transition-all duration-300 active:translate-y-0 active:scale-95 group w-[240px]"
+929-                  >
+--
+948:                  <button 
+949-                    onClick={() => { setLocationError(null); setUseHighAccuracy(true); window.location.reload(); }}
+950-                    className="text-red-600 text-xs font-bold hover:underline flex items-center gap-1 mt-1"
+951-                  >
+952-                    <RefreshCw className="w-3 h-3" /> Reintentar
+--
+966:            <button 
+967-                onClick={() => setStatus(AppStatus.IDLE)} 
+968-                className="px-5 py-2.5 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-all duration-300 flex items-center gap-2 font-bold border border-transparent hover:border-slate-200 dark:hover:border-slate-700 active:scale-95"
+969-            >
+970-                <ArrowLeft className="w-5 h-5" /> Atrás
+--
+972:            <button 
+973-                onClick={() => setStatus(AppStatus.SETTINGS)}
+974-                className="group relative p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+975-                aria-label="Configuración"
+976-            >
+--
+1010:              <button 
+1011-                onClick={() => setUseHighAccuracy(!useHighAccuracy)}
+1012-                className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${useHighAccuracy ? 'bg-indigo-500' : 'bg-slate-200'}`}
+1013-              >
+1014-                <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${useHighAccuracy ? 'left-7' : 'left-1'}`} />
+--
+1045:                    <button 
+1046-                      onClick={(e) => { e.stopPropagation(); toggleSavedPlace(place); }}
+1047-                      className={`group relative p-3 rounded-2xl transition-all duration-300 ${isSaved(place) ? 'text-rose-500 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+1048-                    >
+1049-                      <Heart className={`w-5 h-5 ${isSaved(place) ? 'fill-current drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]' : ''}`} />
+--
+1054:                    <button 
+1055-                      onClick={(e) => deleteSavedPlace(place.id, e)}
+1056-                      className="group relative p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-2xl transition-all duration-300"
+1057-                    >
+1058-                      <Trash2 className="w-5 h-5" />
+--
+1095:                    <button 
+1096-                      onClick={(e) => { e.stopPropagation(); toggleSavedPlace(item); }}
+1097-                      className={`p-2.5 rounded-2xl transition-all duration-300 ${isSaved(item) ? 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+1098-                    >
+1099-                      <Heart className={`w-5 h-5 ${isSaved(item) ? 'fill-current' : ''}`} />
+--
+1118:            <button 
+1119-            onClick={() => setStatus(AppStatus.PROFILE)} 
+1120-            className="mb-6 p-2 -ml-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 inline-flex transition-colors"
+1121-            >
+1122-            <ArrowLeft className="w-6 h-6 text-slate-700 dark:text-slate-200" />
+--
+1168:                <button 
+1169-                    onClick={() => setAlarmSettings({...alarmSettings, vibration: !alarmSettings.vibration})}
+1170-                    className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${alarmSettings.vibration ? 'bg-indigo-500' : 'bg-slate-200'}`}
+1171-                >
+1172-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.vibration ? 'left-7' : 'left-1'}`} />
+--
+1187:                <button 
+1188-                    onClick={() => setAlarmSettings({...alarmSettings, darkMode: !alarmSettings.darkMode})}
+1189-                    className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${alarmSettings.darkMode ? 'bg-indigo-500' : 'bg-slate-200'}`}
+1190-                >
+1191-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.darkMode ? 'left-7' : 'left-1'}`} />
+--
+1206:                        <button
+1207-                            key={level}
+1208-                            onClick={() => setAlarmSettings({...alarmSettings, intensity: level})}
+1209-                            className={`p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between relative overflow-hidden ${
+1210-                                alarmSettings.intensity === level 
+--
+1252:      <button 
+1253-        onClick={() => setStatus(AppStatus.IDLE)}
+1254-        className="mt-12 flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-lg shadow-slate-200/50 dark:shadow-slate-900/50 hover:shadow-xl px-8 py-4 rounded-3xl transition-all duration-300 font-bold text-base hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 active:scale-95 border border-slate-200/60 dark:border-slate-700/60"
+1255-      >
+1256-        <ArrowLeft className="w-5 h-5" /> Cancelar búsqueda
+--
+1274:          <button 
+1275-              onClick={() => setStatus(AppStatus.IDLE)}
+1276-              className="absolute top-4 left-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-5 py-3.5 rounded-full shadow-lg shadow-slate-900/5 z-[401] hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-2 border border-slate-200/50 dark:border-slate-700/50"
+1277-          >
+1278-              <ArrowLeft className="w-5 h-5 text-slate-800 dark:text-slate-100" />
+--
+1288:             <button 
+1289-                onClick={() => draftAlarm?.target && toggleSavedPlace(draftAlarm.target)}
+1290-                className={`group relative p-3 rounded-2xl transition-all duration-300 ${isFavorite ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 shadow-inner' : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+1291-             >
+1292-                <Heart className={`w-7 h-7 ${isFavorite ? 'fill-current drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]' : ''}`} />
+--
+1340:                        <button
+1341-                          key={idx}
+1342-                          onClick={() => {
+1343-                            setDraftAlarm(prev => {
+1344-                              if (!prev || !prev.recurrence) return prev;
+--
+1371:              <button 
+1372-                  onClick={() => setStatus(AppStatus.IDLE)}
+1373-                  className="flex-[0.8] bg-white/60 dark:bg-slate-800/60 backdrop-blur-3xl text-slate-700 dark:text-slate-300 py-4 rounded-[1.5rem] text-[16px] font-bold hover:bg-white/90 dark:hover:bg-slate-700/80 active:scale-95 transition-all duration-500 flex items-center justify-center gap-2 border border-white/80 dark:border-slate-600/50 shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_25px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.2)] hover:-translate-y-1 h-[64px]"
+1374-              >
+1375-                  <X className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+--
+1378:              <button 
+1379-                  onClick={saveAlarm}
+1380-                  className="group flex-[2] bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:from-indigo-400 hover:via-violet-400 hover:to-fuchsia-400 text-white py-4 rounded-[1.5rem] text-[17px] font-extrabold shadow-[0_8px_25px_rgba(99,102,241,0.3)] dark:shadow-[0_8px_25px_rgba(99,102,241,0.15)] hover:shadow-[0_15px_35px_rgba(99,102,241,0.4)] dark:hover:shadow-[0_15px_35px_rgba(99,102,241,0.25)] hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-500 flex items-center justify-center gap-3 border border-indigo-300/30 dark:border-indigo-400/20 h-[64px] relative overflow-hidden"
+1381-              >
+1382-                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
+--
+1444:            <button 
+1445-                onClick={() => {
+1446-                  if (window.confirm("¿Estás seguro que deseas cancelar tu ruta actual?")) {
+1447-                    setStatus(AppStatus.IDLE);
+1448-                  }
+--
+1486:          <button 
+1487-              onClick={stopTracking}
+1488-              className="w-full max-w-xs bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 text-slate-900 dark:text-white py-6 rounded-3xl text-xl font-black shadow-[0_10px_40px_rgba(255,255,255,0.3)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/50 dark:border-white/10 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(255,255,255,0.4)] active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
+1489-          >
+1490-              <Check className="w-7 h-7 text-green-500" />

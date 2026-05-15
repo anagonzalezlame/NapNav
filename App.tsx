@@ -39,10 +39,14 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<SavedPlace[]>([]);
 
   // Alarm Settings
-  const [alarmSettings, setAlarmSettings] = useState<AlarmSettings>({
-    volume: 100,
-    vibration: true,
-    intensity: 'normal'
+  const [alarmSettings, setAlarmSettings] = useState<AlarmSettings>(() => {
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return {
+      volume: 100,
+      vibration: true,
+      intensity: 'normal',
+      darkMode: isDark
+    };
   });
 
   // Refs
@@ -62,7 +66,10 @@ const App: React.FC = () => {
     
     if (loadedPlaces) setSavedPlaces(JSON.parse(loadedPlaces));
     if (loadedHistory) setHistory(JSON.parse(loadedHistory));
-    if (loadedSettings) setAlarmSettings(JSON.parse(loadedSettings));
+    if (loadedSettings) {
+      const parsed = JSON.parse(loadedSettings);
+      setAlarmSettings(prev => ({ ...prev, ...parsed }));
+    }
     if (loadedAlarms) setAlarms(JSON.parse(loadedAlarms));
   }, []);
 
@@ -600,7 +607,7 @@ const App: React.FC = () => {
         <div className="flex items-center justify-between mb-8">
             <button 
                 onClick={() => setStatus(AppStatus.IDLE)} 
-                className="p-3 -ml-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-colors"
+                className="p-3 -ml-2 rounded-full bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all duration-300 active:scale-95"
             >
                 <ArrowLeft className="w-6 h-6" />
             </button>
@@ -640,13 +647,13 @@ const App: React.FC = () => {
                     alert(`Accion confirmada. Procesando...`);
                     removePendingAction(action.id);
                   }}
-                  className="flex-[2] py-3.5 bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-2xl font-bold border border-white/20 text-sm shadow-[0_4px_15px_rgba(99,102,241,0.3)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300"
+                  className="flex-[2] py-3.5 bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-[1.25rem] font-bold border border-white/20 text-sm shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300"
                 >
                   Confirmar
                 </button>
                 <button 
                   onClick={() => removePendingAction(action.id)}
-                  className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold border border-slate-200 dark:border-slate-700 text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300"
+                  className="flex-1 py-3.5 bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 text-slate-600 dark:text-slate-300 rounded-[1.25rem] font-bold border border-slate-200/60 dark:border-slate-700/60 text-sm shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300"
                 >
                   Ignorar
                 </button>
@@ -701,7 +708,7 @@ const App: React.FC = () => {
                 </div>
                 <button 
                   onClick={() => setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: !a.enabled } : a))}
-                  className={`w-14 h-8 rounded-full transition-colors relative shadow-inner shrink-0 ${alarm.enabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                  className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner shrink-0 ${alarm.enabled ? 'bg-gradient-to-r from-indigo-500 to-violet-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
                   <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarm.enabled ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -768,7 +775,7 @@ const App: React.FC = () => {
         <div className="flex gap-3">
           <button 
             onClick={() => setStatus(AppStatus.ALARMS_LIST)}
-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50 flex items-center gap-2"
+            className="group relative bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 backdrop-blur-md p-3.5 rounded-[1.25rem] shadow-sm hover:shadow-md shadow-indigo-500/5 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2"
           >
             <Bell className="w-6 h-6" />
             {alarms.filter(a => a.enabled).length > 0 && (
@@ -780,7 +787,7 @@ const App: React.FC = () => {
           </button>
           <button 
             onClick={() => setStatus(AppStatus.ALERTS)}
-            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-amber-600 border border-white/50 flex items-center gap-2"
+            className="group relative bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 backdrop-blur-md p-3.5 rounded-[1.25rem] shadow-sm hover:shadow-md shadow-amber-500/10 hover:scale-105 transition-all text-amber-600 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2"
           >
             <MessageSquare className="w-6 h-6" />
             {pendingActions.length > 0 && (
@@ -791,15 +798,26 @@ const App: React.FC = () => {
             </span>
           </button>
         </div>
-        <button 
-          onClick={() => setStatus(AppStatus.PROFILE)}
-          className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
-        >
-          <User className="w-6 h-6" />
-          <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
-            Mi Perfil
-          </span>
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setAlarmSettings({...alarmSettings, darkMode: !alarmSettings.darkMode})}
+            className="group relative bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-800/90 backdrop-blur-md p-3.5 rounded-[1.25rem] shadow-sm hover:shadow-md shadow-indigo-500/5 hover:scale-105 transition-all duration-300 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 aspect-square flex items-center justify-center inline-flex"
+          >
+            {alarmSettings.darkMode ? <Moon className="w-6 h-6" /> : <Sun className="w-6 h-6" />}
+            <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
+              Alternar Tema
+            </span>
+          </button>
+          <button 
+            onClick={() => setStatus(AppStatus.PROFILE)}
+            className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
+          >
+            <User className="w-6 h-6" />
+            <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
+              Mi Perfil
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className="relative z-10 flex flex-col items-center w-full px-6 max-w-lg mx-auto">
@@ -835,7 +853,7 @@ const App: React.FC = () => {
                     <button 
                       type="submit"
                       disabled={!query.trim()}
-                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-7 py-3.5 rounded-3xl disabled:opacity-50 hover:shadow-[0_8px_20px_rgba(99,102,241,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 font-bold flex items-center gap-2 border border-white/20"
+                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-8 py-3.5 rounded-full disabled:opacity-50 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 font-bold flex items-center gap-2 border border-white/20"
                     >
                       <span>Ir</span>
                       <Navigation className="w-5 h-5" />
@@ -991,7 +1009,7 @@ const App: React.FC = () => {
               </div>
               <button 
                 onClick={() => setUseHighAccuracy(!useHighAccuracy)}
-                className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${useHighAccuracy ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner ${useHighAccuracy ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-indigo-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
               >
                 <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${useHighAccuracy ? 'left-7' : 'left-1'}`} />
               </button>
@@ -1149,7 +1167,7 @@ const App: React.FC = () => {
                 </div>
                 <button 
                     onClick={() => setAlarmSettings({...alarmSettings, vibration: !alarmSettings.vibration})}
-                    className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${alarmSettings.vibration ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                    className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner ${alarmSettings.vibration ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-indigo-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
                     <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.vibration ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -1168,7 +1186,7 @@ const App: React.FC = () => {
                 </div>
                 <button 
                     onClick={() => setAlarmSettings({...alarmSettings, darkMode: !alarmSettings.darkMode})}
-                    className={`w-14 h-8 rounded-full transition-colors relative shadow-inner ${alarmSettings.darkMode ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                    className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner ${alarmSettings.darkMode ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-indigo-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
                     <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.darkMode ? 'left-7' : 'left-1'}`} />
                 </button>
@@ -1233,7 +1251,7 @@ const App: React.FC = () => {
       
       <button 
         onClick={() => setStatus(AppStatus.IDLE)}
-        className="mt-12 flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-lg shadow-slate-200/50 dark:shadow-slate-900/50 hover:shadow-xl px-8 py-4 rounded-3xl transition-all duration-300 font-bold text-base hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 active:scale-95 border border-slate-200/60 dark:border-slate-700/60"
+        className="mt-12 flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm hover:shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 px-8 py-4 rounded-[1.25rem] transition-all duration-300 font-bold text-base hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 hover:-translate-y-0.5 active:scale-95 border border-slate-200/60 dark:border-slate-700/60"
       >
         <ArrowLeft className="w-5 h-5" /> Cancelar búsqueda
       </button>
@@ -1352,14 +1370,14 @@ const App: React.FC = () => {
           <div className="flex gap-4 mt-6 shrink-0 relative z-10">
               <button 
                   onClick={() => setStatus(AppStatus.IDLE)}
-                  className="flex-[0.8] bg-white/60 dark:bg-slate-800/60 backdrop-blur-3xl text-slate-700 dark:text-slate-300 py-4 rounded-[1.5rem] text-[16px] font-bold hover:bg-white/90 dark:hover:bg-slate-700/80 active:scale-95 transition-all duration-500 flex items-center justify-center gap-2 border border-white/80 dark:border-slate-600/50 shadow-[0_4px_15px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_25px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_25px_rgba(0,0,0,0.2)] hover:-translate-y-1 h-[64px]"
+                  className="flex-[0.8] bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 backdrop-blur-3xl text-slate-700 dark:text-slate-300 py-4 rounded-[1.25rem] text-[16px] font-bold hover:shadow-md active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 border border-slate-200/60 dark:border-slate-700/60 shadow-sm hover:-translate-y-0.5 h-[64px]"
               >
                   <X className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                   <span className="hidden sm:inline tracking-wide">Cancelar</span>
               </button>
               <button 
                   onClick={saveAlarm}
-                  className="group flex-[2] bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:from-indigo-400 hover:via-violet-400 hover:to-fuchsia-400 text-white py-4 rounded-[1.5rem] text-[17px] font-extrabold shadow-[0_8px_25px_rgba(99,102,241,0.3)] dark:shadow-[0_8px_25px_rgba(99,102,241,0.15)] hover:shadow-[0_15px_35px_rgba(99,102,241,0.4)] dark:hover:shadow-[0_15px_35px_rgba(99,102,241,0.25)] hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-500 flex items-center justify-center gap-3 border border-indigo-300/30 dark:border-indigo-400/20 h-[64px] relative overflow-hidden"
+                  className="group flex-[2] bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 bg-[length:200%_auto] hover:bg-[position:right_center] text-white py-4 rounded-[1.25rem] text-[17px] font-extrabold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-500 flex items-center justify-center gap-3 border border-white/20 h-[64px] relative overflow-hidden"
               >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
                   <Navigation className="w-5 h-5 text-white fill-white drop-shadow-md group-hover:rotate-12 transition-transform duration-500" />
@@ -1429,7 +1447,7 @@ const App: React.FC = () => {
                     setStatus(AppStatus.IDLE);
                   }
                 }}
-                className="w-full bg-gradient-to-r from-rose-900/80 to-rose-800/80 backdrop-blur-xl text-white py-4 rounded-3xl text-lg font-bold border border-rose-500/20 hover:from-rose-800 hover:to-rose-700 transition-all duration-300 flex items-center justify-center gap-3 group active:scale-95 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(225,29,72,0.4)] shadow-[0_4px_20px_rgba(225,29,72,0.2)]"
+                className="w-full bg-gradient-to-r from-rose-900/80 to-rose-800/80 backdrop-blur-xl text-white py-4 rounded-[1.25rem] text-lg font-bold border border-rose-500/20 hover:from-rose-800 hover:to-rose-700 transition-all duration-300 flex items-center justify-center gap-3 group active:scale-95 hover:-translate-y-0.5 shadow-lg shadow-rose-900/40 hover:shadow-rose-900/60"
             >
                 <X className="w-6 h-6 text-rose-300 group-hover:text-white transition-colors" />
                 Cancelar Ruta
@@ -1467,7 +1485,7 @@ const App: React.FC = () => {
           
           <button 
               onClick={stopTracking}
-              className="w-full max-w-xs bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 text-slate-900 dark:text-white py-6 rounded-3xl text-xl font-black shadow-[0_10px_40px_rgba(255,255,255,0.3)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/50 dark:border-white/10 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(255,255,255,0.4)] active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
+              className="w-full max-w-xs bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 text-slate-900 dark:text-white py-5 rounded-[1.5rem] text-xl font-black shadow-xl shadow-white/20 dark:shadow-black/40 border border-white/50 dark:border-white/10 hover:-translate-y-1 hover:shadow-2xl active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
           >
               <Check className="w-7 h-7 text-green-500" />
               ¡Estoy despierto!
