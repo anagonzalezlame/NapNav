@@ -300,7 +300,7 @@ const App: React.FC = () => {
 
   // --- Logic Functions ---
 
-  const executeSearch = async (searchQuery: string, radiusOverride?: number) => {
+  const executeSearch = async (searchQuery: string, radiusOverride: number = 500) => {
     if (!searchQuery.trim()) return;
 
     // Quitar el foco del input para ocultar el teclado en móviles
@@ -341,7 +341,7 @@ const App: React.FC = () => {
 
       setDraftAlarm({
         target: location,
-        radius: radiusOverride || 500, 
+        radius: radiusOverride, 
         alarmMessage: alarmScript,
         recurrence: { type: 'once' }
       });
@@ -356,13 +356,13 @@ const App: React.FC = () => {
   const selectSavedLocation = async (place: SavedPlace) => {
     setStatus(AppStatus.SEARCHING);
     try {
-      const alarmScript = `¡Atención! Estás llegando a ${place.name}.`;
+      const alarmScript = place.alarmMessage || `¡Atención! Estás llegando a ${place.name}.`;
       
       setDraftAlarm({
         target: place,
         radius: place.defaultRadius || 500,
         alarmMessage: alarmScript,
-        recurrence: { type: 'once' }
+        recurrence: place.recurrence || { type: 'once' }
       });
       setStatus(AppStatus.CONFIRMING);
     } catch (error) {
@@ -415,7 +415,9 @@ const App: React.FC = () => {
       ...draftAlarm.target,
       id: Date.now().toString(),
       dateAdded: Date.now(),
-      defaultRadius: draftAlarm.radius
+      defaultRadius: draftAlarm.radius,
+      alarmMessage: draftAlarm.alarmMessage,
+      recurrence: draftAlarm.recurrence
     };
     
     setHistory(prev => {
@@ -821,23 +823,23 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 flex flex-col items-center w-full px-6 max-w-lg mx-auto">
-        <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-5 rounded-3xl mb-8 shadow-xl shadow-indigo-500/20 rotate-3 hover:rotate-6 transition-transform duration-300">
-          <MapPin className="w-10 h-10 text-white" strokeWidth={2.5} />
+        <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-6 rounded-[2rem] mb-10 shadow-2xl shadow-indigo-500/30 rotate-3 hover:rotate-6 transition-transform duration-300 border border-white/20">
+          <MapPin className="w-12 h-12 text-white" strokeWidth={2.5} />
         </div>
-        <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 mb-3 tracking-tighter animate-gradient-x">
+        <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 mb-4 tracking-tighter">
           NapNav
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 font-medium text-center mb-12 max-w-xs leading-relaxed">
-          NapNav: Tu secretaria personal de movilidad. Te cuidamos mientras descansas.
+        <p className="text-slate-500 dark:text-slate-400 font-semibold text-center mb-14 max-w-xs leading-relaxed text-lg">
+          Tu secretaria personal de movilidad. Te cuidamos mientras descansas.
         </p>
         
         <div className="w-full max-w-md mx-auto relative z-30">
           <div className="relative group">
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/30 to-violet-500/30 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-            <div className="relative overflow-hidden rounded-[2.5rem] p-[2px] bg-gradient-to-r from-slate-200/50 to-slate-100/50 focus-within:from-indigo-500 focus-within:to-violet-500 transition-all duration-300 shadow-2xl shadow-indigo-900/5 backdrop-blur-sm">
-              <div className="bg-white dark:bg-slate-800 dark:bg-slate-800/70 backdrop-blur-2xl rounded-[2.4rem] flex items-center p-2.5">
-                <div className="p-3 text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30/50 rounded-full mr-2">
-                  <Search className="w-6 h-6" />
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/40 to-violet-500/40 rounded-[2.5rem] blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div className="relative overflow-hidden rounded-[2.5rem] p-[2px] bg-white/20 dark:bg-slate-800/20 backdrop-blur-3xl focus-within:bg-gradient-to-r focus-within:from-indigo-500 focus-within:to-violet-500 transition-all duration-300 shadow-2xl shadow-indigo-900/10">
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[2.4rem] flex items-center p-3">
+                <div className="p-3.5 text-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10 rounded-full mr-3 shadow-inner">
+                  <Search className="w-7 h-7" />
                 </div>
                 <form onSubmit={handleSearch} className="flex-1 flex items-center">
                   <input
@@ -845,18 +847,18 @@ const App: React.FC = () => {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                    placeholder="Buscar un destino..."
-                    className="flex-1 py-3 px-2 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-bold bg-transparent text-lg"
+                    placeholder="¿A dónde quieres ir?"
+                    className="flex-1 py-4 px-2 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-extrabold bg-transparent text-xl tracking-tight"
                   />
                   <div className="flex items-center gap-2 px-1">
-                    {isSuggesting && <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />}
+                    {isSuggesting && <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />}
                     <button 
                       type="submit"
                       disabled={!query.trim()}
-                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-8 py-3.5 rounded-full disabled:opacity-50 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 font-bold flex items-center gap-2 border border-white/20"
+                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-10 py-4 rounded-full disabled:opacity-50 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-300 font-black text-lg flex items-center gap-2 border border-white/20"
                     >
                       <span>Ir</span>
-                      <Navigation className="w-5 h-5" />
+                      <Navigation className="w-6 h-6" />
                     </button>
                   </div>
                 </form>
@@ -866,23 +868,23 @@ const App: React.FC = () => {
             <AnimatePresence>
               {showSuggestions && suggestions.length > 0 && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 dark:bg-slate-800/70 backdrop-blur-2xl rounded-3xl shadow-xl border border-white/50 overflow-hidden z-40"
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="absolute top-full left-0 right-0 mt-5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-3xl rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800/50 overflow-hidden z-40 p-2"
                 >
                   {suggestions.map((sug, i) => (
                     <button
                       key={i}
                       onClick={() => handleSuggestionClick(sug)}
-                      className="w-full text-left px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700 dark:bg-slate-900 border-b border-indigo-50/50 last:border-0 flex items-start gap-4 transition-colors"
+                      className="w-full text-left px-6 py-5 hover:bg-indigo-500 hover:text-white rounded-2xl outline-none flex items-start gap-5 transition-all duration-200 group"
                     >
-                      <MapPin className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                      <MapPin className="w-6 h-6 text-indigo-500 group-hover:text-white shrink-0 mt-1 transition-colors" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-800 dark:text-slate-100 truncate">
+                        <p className="font-extrabold text-slate-800 dark:text-slate-100 group-hover:text-white truncate text-lg tracking-tight">
                           {sug.display_name.split(',')[0]}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 group-hover:text-indigo-100 truncate mt-0.5 font-medium">
                           {sug.display_name.split(',').slice(1).join(',')}
                         </p>
                       </div>
@@ -1067,40 +1069,37 @@ const App: React.FC = () => {
           )}
         </section>
 
-        {/* Section: History */}
+        {/* Section: Mis Alarmas (History) */}
         <section>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 ml-2">Recientes</h3>
+          <div className="flex items-center justify-between mb-4 ml-2">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mis Alarmas</h3>
+            <History className="w-4 h-4 text-slate-400" />
+          </div>
           {history.length === 0 ? (
             <div className="text-center py-8 bg-white dark:bg-slate-800 dark:bg-slate-800/60 backdrop-blur-xl rounded-3xl border border-dashed border-slate-300/50">
-              <p className="text-slate-400 text-sm">Tus viajes recientes aparecerán aquí.</p>
+              <p className="text-slate-400 text-sm">Tus alarmas recientes aparecerán aquí.</p>
             </div>
           ) : (
             <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-3xl rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-white/60 dark:border-slate-700/30 overflow-hidden flex flex-col divide-y divide-slate-100/50 dark:divide-slate-700/50">
               {history.map(item => (
-                <div 
+                <button 
                     key={item.id} 
                     onClick={() => selectSavedLocation(item)}
-                    className="p-5 flex items-center justify-between cursor-pointer bg-transparent hover:bg-white/80 dark:hover:bg-slate-700/40 transition-all duration-300 group"
+                    className="w-full p-5 flex items-center justify-between text-left bg-transparent hover:bg-white/80 dark:hover:bg-slate-700/40 transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[1.2rem] bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-700/50 dark:to-slate-800/50 flex items-center justify-center text-slate-500 dark:text-slate-400 text-base font-bold shadow-[inset_0_2px_8px_rgba(255,255,255,1)] dark:shadow-[inset_0_2px_8px_rgba(255,255,255,0.05)] group-hover:scale-105 group-hover:shadow-[0_4px_10px_rgba(0,0,0,0.05)] transition-all duration-300">
-                       {item.name.charAt(0)}
+                    <div className="w-12 h-12 rounded-[1.2rem] bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 text-base shadow-inner group-hover:scale-105 transition-all duration-300">
+                       <Bell className="w-5 h-5" />
                     </div>
                     <div>
                         <p className="font-bold text-slate-800 dark:text-slate-100 text-[16px]">{item.name}</p>
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Radio: {formatDistance(item.defaultRadius || 500)}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Radio: {formatDistance(item.defaultRadius || 500)}</span>
+                        </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); toggleSavedPlace(item); }}
-                      className={`p-2.5 rounded-2xl transition-all duration-300 ${isSaved(item) ? 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                    >
-                      <Heart className={`w-5 h-5 ${isSaved(item) ? 'fill-current' : ''}`} />
-                    </button>
-                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-400 dark:text-slate-600 dark:group-hover:text-slate-400 transition-colors" />
-                  </div>
-                </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 dark:text-slate-600 dark:group-hover:text-indigo-400 transition-colors" />
+                </button>
               ))}
             </div>
           )}
@@ -1155,10 +1154,10 @@ const App: React.FC = () => {
             </section>
 
             {/* Vibration */}
-            <section className="bg-white dark:bg-slate-800 dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <section className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-5 rounded-[2rem] shadow-sm border border-white/60 dark:border-slate-700/50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                        <Smartphone className="w-5 h-5" />
+                    <div className="p-3 bg-violet-100 dark:bg-violet-500/10 rounded-2xl text-violet-600">
+                        <Smartphone className="w-6 h-6" />
                     </div>
                     <div>
                         <h3 className="font-bold text-slate-900 dark:text-white">Vibración</h3>
@@ -1169,15 +1168,15 @@ const App: React.FC = () => {
                     onClick={() => setAlarmSettings({...alarmSettings, vibration: !alarmSettings.vibration})}
                     className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner ${alarmSettings.vibration ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-indigo-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.vibration ? 'left-7' : 'left-1'}`} />
+                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.vibration ? 'left-7' : 'left-1'}`} />
                 </button>
             </section>
 
             {/* Dark Mode */}
-            <section className="bg-white dark:bg-slate-800 dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <section className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-5 rounded-[2rem] shadow-sm border border-white/60 dark:border-slate-700/50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="p-2 bg-slate-100 rounded-lg text-slate-600 dark:text-slate-300">
-                        {alarmSettings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                    <div className="p-3 bg-slate-100 dark:bg-slate-700/50 rounded-2xl text-slate-600 dark:text-slate-300">
+                        {alarmSettings.darkMode ? <Moon className="w-6 h-6" /> : <Sun className="w-6 h-6" />}
                     </div>
                     <div>
                         <h3 className="font-bold text-slate-900 dark:text-white">Modo Oscuro</h3>
@@ -1188,15 +1187,15 @@ const App: React.FC = () => {
                     onClick={() => setAlarmSettings({...alarmSettings, darkMode: !alarmSettings.darkMode})}
                     className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner ${alarmSettings.darkMode ? 'bg-gradient-to-r from-indigo-500 to-violet-500 shadow-indigo-500/20' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.darkMode ? 'left-7' : 'left-1'}`} />
+                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarmSettings.darkMode ? 'left-7' : 'left-1'}`} />
                 </button>
             </section>
 
             {/* Intensity */}
-            <section className="bg-white dark:bg-slate-800 dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <section className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl p-6 rounded-[2rem] shadow-sm border border-white/60 dark:border-slate-700/50">
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600">
-                        <Zap className="w-5 h-5" />
+                    <div className="p-3 bg-indigo-100 dark:bg-indigo-500/10 rounded-2xl text-indigo-600">
+                        <Zap className="w-6 h-6" />
                     </div>
                     <h3 className="font-bold text-slate-900 dark:text-white">Intensidad de Alarma</h3>
                 </div>
@@ -1206,14 +1205,14 @@ const App: React.FC = () => {
                         <button
                             key={level}
                             onClick={() => setAlarmSettings({...alarmSettings, intensity: level})}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all flex items-center justify-between relative overflow-hidden ${
+                            className={`p-5 rounded-[1.5rem] border-2 text-left transition-all flex items-center justify-between relative overflow-hidden ${
                                 alarmSettings.intensity === level 
-                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30/50' 
-                                : 'border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:border-slate-600'
+                                ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/20' 
+                                : 'border-slate-100 dark:border-slate-700/50 hover:border-indigo-200 dark:hover:border-indigo-900/50'
                             }`}
                         >
                             <div className="relative z-10">
-                                <span className="block font-bold text-slate-900 dark:text-white capitalize text-lg">
+                                <span className="block font-bold text-slate-900 dark:text-white capitalize text-lg tracking-tight">
                                     {level === 'soft' ? 'Suave' : level === 'normal' ? 'Normal' : 'Intensa'}
                                 </span>
                                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 block">
@@ -1222,8 +1221,8 @@ const App: React.FC = () => {
                                 </span>
                             </div>
                             {alarmSettings.intensity === level && (
-                                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                                    <Check className="w-5 h-5" />
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                                    <Check className="w-5 h-5 stroke-[3px]" />
                                 </div>
                             )}
                         </button>
@@ -1238,22 +1237,24 @@ const App: React.FC = () => {
 
   const renderSearching = () => (
     <div className="flex flex-col items-center justify-center min-h-[80vh] relative p-6">
-      <div className="relative mb-8">
-        <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full"></div>
-        <div className="relative bg-white dark:bg-slate-800 dark:bg-slate-800 p-4 rounded-3xl shadow-xl shadow-indigo-100">
-            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+      <div className="flex flex-col items-center justify-center relative">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-indigo-500/30 blur-3xl rounded-full animate-pulse"></div>
+          <div className="relative bg-white/40 dark:bg-slate-800/40 backdrop-blur-3xl p-6 rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-700/50">
+              <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+          </div>
         </div>
+        <h3 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Buscando ubicación...</h3>
+        <p className="text-slate-500 dark:text-slate-400 font-medium text-center max-w-xs leading-relaxed">
+          Localizando las mejores coordenadas para tu destino.
+        </p>
       </div>
-      <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Buscando ubicación para la persona usuaria...</h3>
-      <p className="text-slate-500 dark:text-slate-400 font-medium text-center max-w-xs leading-relaxed">
-        Consultando a Nominatim para localizar las mejores coordenadas.
-      </p>
       
       <button 
         onClick={() => setStatus(AppStatus.IDLE)}
         className="mt-12 flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm hover:shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 px-8 py-4 rounded-[1.25rem] transition-all duration-300 font-bold text-base hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 hover:-translate-y-0.5 active:scale-95 border border-slate-200/60 dark:border-slate-700/60"
       >
-        <ArrowLeft className="w-5 h-5" /> Cancelar búsqueda
+        <ArrowLeft className="w-5 h-5" /> Cancelar
       </button>
     </div>
   );
@@ -1397,30 +1398,48 @@ const App: React.FC = () => {
             currentLocation={currentLocation} 
             targetLocation={activeAlarm?.target || null}
             radius={activeAlarm?.radius || 500}
-            zoom={15} // Closer zoom for tracking
+            zoom={16} // Un poco más cerca
             isTracking={true}
         />
+        {/* Gradiente para transición suave y legibilidad */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent pointer-events-none z-10" />
       </div>
 
       {/* Info Section - Bottom Sheet Style overlaying the map */}
-      <div className="mt-auto relative z-10 bg-slate-900/85 backdrop-blur-2xl rounded-t-[2.5rem] px-6 pt-8 pb-8 flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.4)] border-t border-white/10">
+      <div className="mt-auto relative z-20 bg-slate-900/60 backdrop-blur-3xl rounded-t-[2.5rem] px-6 pt-8 pb-8 flex flex-col border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
          <div className="w-12 h-1 bg-slate-500 rounded-full mx-auto mb-6 opacity-50" />
          
          <div className="w-full max-w-md mx-auto">
             <div className="flex items-center justify-between mb-8">
                 <div>
                    <div className="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 px-3 py-1.5 rounded-full text-indigo-300 text-xs font-bold uppercase tracking-widest mb-2 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                      <motion.div
+                        animate={{ 
+                          scale: [1, 1.2, 1],
+                          rotate: [0, 10, -10, 0]
+                        }}
+                        transition={{ 
+                          duration: 3, 
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                        className="flex items-center justify-center"
+                      >
+                        <Navigation className="w-3.5 h-3.5 fill-indigo-400 text-indigo-400" />
+                      </motion.div>
                       En Ruta
                    </div>
                    <h2 className="text-2xl font-bold text-white truncate max-w-[200px] drop-shadow-md">{activeAlarm?.target?.name || 'Buscando...'}</h2>
                 </div>
                 <div className="text-right">
                     {/* Contraste y glow más tecnológicos */}
-                    <div className="text-5xl font-black tracking-tighter tabular-nums mb-1 text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-blue-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]" style={{ filter: "drop-shadow(0 0 10px rgba(56, 189, 248, 0.5))" }}>
+                    <div className="text-5xl font-black tracking-tighter tabular-nums mb-1 text-white" 
+                         style={{ 
+                           textShadow: "0 0 20px rgba(34, 211, 238, 0.9), 0 0 40px rgba(56, 189, 248, 0.6), 0 0 60px rgba(56, 189, 248, 0.3)" 
+                         }}>
                         {currentDistance !== null ? formatDistance(currentDistance) : '...'}
                     </div>
-                    <p className="text-indigo-300/80 text-xs font-bold uppercase tracking-widest drop-shadow">Distancia</p>
+                    <p className="text-cyan-200/80 text-xs font-bold uppercase tracking-widest drop-shadow-md">Distancia</p>
                 </div>
             </div>
 

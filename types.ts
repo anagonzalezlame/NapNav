@@ -49,6 +49,8 @@ export interface AlarmConfig {
 export interface SavedPlace extends LocationInfo {
   id: string;
   defaultRadius?: number;
+  alarmMessage?: string;
+  recurrence?: RecurrenceConfig;
   dateAdded: number;
 }
 
