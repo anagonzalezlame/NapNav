@@ -1258,7 +1258,7 @@ const App: React.FC = () => {
                   {user ? (user.displayName || 'Usuario') : 'Mi Perfil'}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 font-medium truncate">
-                  {user ? user.email : 'Bienvenido a NapNav'}
+                  {user ? user.email : 'Te damos la bienvenida a NapNav'}
                 </p>
             </div>
         </div>
@@ -1275,14 +1275,14 @@ const App: React.FC = () => {
             <div className="relative z-10">
               <h3 className="text-2xl font-black mb-3 leading-tight">Guarda tus lugares <br/>en la nube</h3>
               <p className="text-indigo-100 mb-8 font-medium max-w-[220px] text-sm leading-relaxed">
-                Inicia sesión para sincronizar tus favoritos e historial en todos tus dispositivos.
+                Inicia sesión para sincronizar tus favoritos e historial en cualquier dispositivo.
               </p>
               <button 
                 onClick={() => signInWithGoogle()}
                 className="w-full py-4 bg-white text-indigo-600 rounded-2xl font-black shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
               >
                 <LogIn className="w-5 h-5" />
-                Acceder con Google
+                Iniciar sesión para la persona usuaria
               </button>
             </div>
           </section>
