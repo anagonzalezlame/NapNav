@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MapPin, Navigation, Bell, Search, StopCircle, Volume2, 
-  AlertCircle, RefreshCw, Loader2, ArrowLeft, X, User, 
+  AlertCircle, RefreshCw, Loader2, ArrowLeft, X, User as UserIcon, 
   Settings, Heart, Trash2, History, ChevronRight, Zap, Smartphone, Check,
-  Moon, Sun, Key, MessageSquare
+  Moon, Sun, Key, MessageSquare, LogOut, LogIn
 } from 'lucide-react';
 import { useAgent } from './contexts/AgentContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,10 +11,20 @@ import { generateAlarmAudio, getPlaceSuggestions } from './services/gemini';
 import { calculateDistance, formatDistance } from './utils/geo';
 import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity, PendingAction } from './types';
 import MapDisplay from './components/MapDisplay';
+import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  doc, setDoc, getDoc, collection, onSnapshot, 
+  serverTimestamp, deleteDoc, writeBatch 
+} from 'firebase/firestore';
 
 const App: React.FC = () => {
   // Agent Context
   const { mission, pendingActions, addPendingAction, removePendingAction, mood, setMood } = useAgent();
+
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // State
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -56,34 +66,181 @@ const App: React.FC = () => {
   const debounceRef = useRef<number | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const beepTimeoutRef = useRef<number | null>(null);
+  const initialSyncDone = useRef(false);
 
-  // Load from LocalStorage
+  // Auth Listener
   useEffect(() => {
-    const loadedPlaces = localStorage.getItem('napnav_places');
-    const loadedHistory = localStorage.getItem('napnav_history');
-    const loadedSettings = localStorage.getItem('napnav_settings');
-    const loadedAlarms = localStorage.getItem('napnav_alarms');
-    
-    if (loadedPlaces) setSavedPlaces(JSON.parse(loadedPlaces));
-    if (loadedHistory) setHistory(JSON.parse(loadedHistory));
-    if (loadedSettings) {
-      const parsed = JSON.parse(loadedSettings);
-      setAlarmSettings(prev => ({ ...prev, ...parsed }));
-    }
-    if (loadedAlarms) setAlarms(JSON.parse(loadedAlarms));
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthLoading(false);
+      
+      if (currentUser) {
+        // Ensure user profile exists
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        getDoc(userDocRef).then((snap) => {
+          if (!snap.exists()) {
+            setDoc(userDocRef, {
+              userId: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              updatedAt: serverTimestamp(),
+              settings: alarmSettings
+            }, { merge: true }).catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`));
+          }
+        });
+      } else {
+        initialSyncDone.current = false;
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Save to LocalStorage
+  // Firebase Real-time Sync
   useEffect(() => {
-    localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
-  }, [savedPlaces]);
+    if (!user) return;
+
+    const userPath = `users/${user.uid}`;
+    
+    // Sync Settings
+    const unsubSettings = onSnapshot(doc(db, userPath), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.settings) {
+          setAlarmSettings(prev => ({ ...prev, ...data.settings }));
+        }
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, userPath));
+
+    // Sync Saved Places
+    const unsubPlaces = onSnapshot(collection(db, `${userPath}/savedPlaces`), (snap) => {
+      const places: SavedPlace[] = [];
+      snap.forEach(doc => places.push(doc.data() as SavedPlace));
+      setSavedPlaces(places.sort((a, b) => b.dateAdded - a.dateAdded));
+    }, (err) => handleFirestoreError(err, OperationType.GET, `${userPath}/savedPlaces`));
+
+    // Sync History
+    const unsubHistory = onSnapshot(collection(db, `${userPath}/history`), (snap) => {
+      const historyItems: SavedPlace[] = [];
+      snap.forEach(doc => historyItems.push(doc.data() as SavedPlace));
+      // Enforce unique by name and limit to 5
+      const sorted = historyItems.sort((a, b) => b.dateAdded - a.dateAdded);
+      const unique: SavedPlace[] = [];
+      const seen = new Set();
+      for (const item of sorted) {
+        const key = item.name?.trim().toLowerCase() || item.id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(item);
+        }
+        if (unique.length >= 5) break;
+      }
+      setHistory(unique);
+    }, (err) => handleFirestoreError(err, OperationType.GET, `${userPath}/history`));
+
+    // Sync Alarms
+    const unsubAlarms = onSnapshot(collection(db, `${userPath}/alarms`), (snap) => {
+      const alarmItems: AlarmConfig[] = [];
+      snap.forEach(doc => alarmItems.push(doc.data() as AlarmConfig));
+      setAlarms(alarmItems);
+    }, (err) => handleFirestoreError(err, OperationType.GET, `${userPath}/alarms`));
+
+    return () => {
+      unsubSettings();
+      unsubPlaces();
+      unsubHistory();
+      unsubAlarms();
+    };
+  }, [user]);
+
+  // Migrate local data to Firebase on login
+  useEffect(() => {
+    if (user && !initialSyncDone.current) {
+      const migrate = async () => {
+        const batch = writeBatch(db);
+        const userPath = `users/${user.uid}`;
+
+        // Migrate settings if different
+        const settingsDoc = doc(db, userPath);
+        batch.set(settingsDoc, { settings: alarmSettings, updatedAt: serverTimestamp() }, { merge: true });
+
+        // Migrate places
+        savedPlaces.forEach(p => {
+          const pDoc = doc(db, `${userPath}/savedPlaces`, p.id);
+          batch.set(pDoc, p);
+        });
+
+        // Migrate history
+        history.forEach(h => {
+          const hDoc = doc(db, `${userPath}/history`, h.id);
+          batch.set(hDoc, h);
+        });
+
+        // Migrate alarms
+        alarms.forEach(a => {
+          const aDoc = doc(db, `${userPath}/alarms`, a.id);
+          batch.set(aDoc, a);
+        });
+
+        try {
+          await batch.commit();
+          initialSyncDone.current = true;
+          console.log("Datosa locales migrados a Firebase exitosamente.");
+        } catch (e) {
+          console.error("Error migrando datos:", e);
+        }
+      };
+      
+      migrate();
+    }
+  }, [user]);
+
+  // Load from LocalStorage (Fallback/Initial)
+  useEffect(() => {
+    if (!user) {
+      const loadedPlaces = localStorage.getItem('napnav_places');
+      const loadedHistory = localStorage.getItem('napnav_history');
+      const loadedSettings = localStorage.getItem('napnav_settings');
+      const loadedAlarms = localStorage.getItem('napnav_alarms');
+      
+      if (loadedPlaces) setSavedPlaces(JSON.parse(loadedPlaces));
+      if (loadedHistory) setHistory(JSON.parse(loadedHistory));
+      if (loadedSettings) {
+        const parsed = JSON.parse(loadedSettings);
+        setAlarmSettings(prev => ({ ...prev, ...parsed }));
+      }
+      if (loadedAlarms) setAlarms(JSON.parse(loadedAlarms));
+    }
+  }, [user]);
+
+  // Save to LocalStorage / Firebase
+  useEffect(() => {
+    if (user) {
+      // Local copy as cache
+      localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
+    } else {
+      localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
+    }
+  }, [savedPlaces, user]);
 
   useEffect(() => {
-    localStorage.setItem('napnav_history', JSON.stringify(history));
-  }, [history]);
+    if (user) {
+      localStorage.setItem('napnav_history', JSON.stringify(history));
+    } else {
+      localStorage.setItem('napnav_history', JSON.stringify(history));
+    }
+  }, [history, user]);
 
   useEffect(() => {
-    localStorage.setItem('napnav_settings', JSON.stringify(alarmSettings));
+    if (user) {
+      localStorage.setItem('napnav_settings', JSON.stringify(alarmSettings));
+      // Update Firebase Settings
+      const userDocRef = doc(db, 'users', user.uid);
+      setDoc(userDocRef, { settings: alarmSettings, updatedAt: serverTimestamp() }, { merge: true })
+        .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`));
+    } else {
+      localStorage.setItem('napnav_settings', JSON.stringify(alarmSettings));
+    }
     
     // Toggle dark mode class on document element
     if (alarmSettings.darkMode) {
@@ -91,11 +248,13 @@ const App: React.FC = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [alarmSettings]);
+  }, [alarmSettings, user]);
 
   useEffect(() => {
-    localStorage.setItem('napnav_alarms', JSON.stringify(alarms));
-  }, [alarms]);
+    if (!user) {
+      localStorage.setItem('napnav_alarms', JSON.stringify(alarms));
+    }
+  }, [alarms, user]);
 
   // Geolocation Watcher
   useEffect(() => {
@@ -408,29 +567,51 @@ const App: React.FC = () => {
     const newAlarm: AlarmConfig = {
       id: Date.now().toString(),
       enabled: true,
-      target: draftAlarm.target,
+      target: draftAlarm.target as LocationInfo,
       radius: draftAlarm.radius,
       alarmMessage: draftAlarm.alarmMessage,
       recurrence: draftAlarm.recurrence
     };
 
-    setAlarms(prev => [...prev, newAlarm]);
-
     // Add to history
     const newHistoryItem: SavedPlace = {
-      ...draftAlarm.target,
+      ...(draftAlarm.target as LocationInfo),
       id: Date.now().toString(),
       dateAdded: Date.now(),
       defaultRadius: draftAlarm.radius,
       alarmMessage: draftAlarm.alarmMessage,
       recurrence: draftAlarm.recurrence
     };
-    
-    setHistory(prev => {
+
+    if (user) {
+      const userPath = `users/${user.uid}`;
+      await setDoc(doc(db, `${userPath}/alarms`, newAlarm.id), newAlarm).catch(err => handleFirestoreError(err, OperationType.WRITE, `${userPath}/alarms/${newAlarm.id}`));
+      
+      // Handle Unique History in Firebase
       const normalizedNewName = newHistoryItem.name?.trim().toLowerCase() || '';
-      const filtered = prev.filter(p => (p.name?.trim().toLowerCase() || '') !== normalizedNewName);
-      return [newHistoryItem, ...filtered].slice(0, 5);
-    });
+      const existingInHistory = history.find(p => (p.name?.trim().toLowerCase() || '') === normalizedNewName);
+      
+      if (existingInHistory) {
+        // Delete old one to make it "unique" and move to top
+        await deleteDoc(doc(db, `${userPath}/history`, existingInHistory.id)).catch(err => handleFirestoreError(err, OperationType.DELETE, `${userPath}/history/${existingInHistory.id}`));
+      }
+      
+      await setDoc(doc(db, `${userPath}/history`, newHistoryItem.id), newHistoryItem).catch(err => handleFirestoreError(err, OperationType.WRITE, `${userPath}/history/${newHistoryItem.id}`));
+      
+      // Optional: Cleanup old items if we strictly want only 5 in DB
+      if (history.length >= 5 && !existingInHistory) {
+        const sorted = [...history].sort((a, b) => b.dateAdded - a.dateAdded);
+        const oldest = sorted[sorted.length - 1];
+        await deleteDoc(doc(db, `${userPath}/history`, oldest.id)).catch(err => handleFirestoreError(err, OperationType.DELETE, `${userPath}/history/${oldest.id}`));
+      }
+    } else {
+      setAlarms(prev => [...prev, newAlarm]);
+      setHistory(prev => {
+        const normalizedNewName = newHistoryItem.name?.trim().toLowerCase() || '';
+        const filtered = prev.filter(p => (p.name?.trim().toLowerCase() || '') !== normalizedNewName);
+        return [newHistoryItem, ...filtered].slice(0, 5);
+      });
+    }
 
     setDraftAlarm(null);
     setStatus(AppStatus.ALARMS_LIST);
@@ -446,7 +627,7 @@ const App: React.FC = () => {
     await releaseWakeLock();
   };
 
-  const triggerAlarm = (alarm: AlarmConfig) => {
+  const triggerAlarm = async (alarm: AlarmConfig) => {
     setActiveAlarm(alarm);
     setStatus(AppStatus.ALARM_TRIGGERED);
     playAlarmSound(alarm);
@@ -454,7 +635,12 @@ const App: React.FC = () => {
     
     // If it's a 'once' alarm, disable it
     if (alarm.recurrence.type === 'once') {
-      setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: false } : a));
+      if (user) {
+        const path = `users/${user.uid}/alarms/${alarm.id}`;
+        await setDoc(doc(db, path), { ...alarm, enabled: false }).catch(err => handleFirestoreError(err, OperationType.UPDATE, path));
+      } else {
+        setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: false } : a));
+      }
     }
   };
 
@@ -583,8 +769,28 @@ const App: React.FC = () => {
     if ('vibrate' in navigator) navigator.vibrate(0);
   };
 
-  const toggleSavedPlace = (place: LocationInfo, settings?: { radius?: number, message?: string, recurrence?: RecurrenceConfig }) => {
+  const toggleSavedPlace = async (place: LocationInfo, settings?: { radius?: number, message?: string, recurrence?: RecurrenceConfig }) => {
     const exists = savedPlaces.find(p => (p.name === place.name || p.address === place.address) && p.lat === place.lat && p.lng === place.lng);
+    
+    if (user) {
+      const userPath = `users/${user.uid}/savedPlaces`;
+      if (exists) {
+        await deleteDoc(doc(db, userPath, exists.id)).catch(err => handleFirestoreError(err, OperationType.DELETE, `${userPath}/${exists.id}`));
+      } else {
+        const id = Date.now().toString();
+        const newPlace: SavedPlace = {
+          ...place,
+          id,
+          dateAdded: Date.now(),
+          defaultRadius: settings?.radius,
+          alarmMessage: settings?.message,
+          recurrence: settings?.recurrence
+        };
+        await setDoc(doc(db, userPath, id), newPlace).catch(err => handleFirestoreError(err, OperationType.WRITE, `${userPath}/${id}`));
+      }
+      return;
+    }
+
     if (exists) {
       setSavedPlaces(prev => prev.filter(p => p.id !== exists.id));
     } else {
@@ -605,8 +811,13 @@ const App: React.FC = () => {
     return savedPlaces.some(p => (p.name === place.name || p.address === place.address) && p.lat === place.lat && p.lng === place.lng);
   };
 
-  const deleteSavedPlace = (id: string, e: React.MouseEvent) => {
+  const deleteSavedPlace = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (user) {
+      const path = `users/${user.uid}/savedPlaces/${id}`;
+      await deleteDoc(doc(db, 'users', user.uid, 'savedPlaces', id)).catch(err => handleFirestoreError(err, OperationType.DELETE, path));
+      return;
+    }
     setSavedPlaces(prev => prev.filter(p => p.id !== id));
   };
 
@@ -718,7 +929,15 @@ const App: React.FC = () => {
                   }</p>
                 </div>
                 <button 
-                  onClick={() => setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: !a.enabled } : a))}
+                  onClick={async () => {
+                    const newEnabled = !alarm.enabled;
+                    if (user) {
+                      const path = `users/${user.uid}/alarms/${alarm.id}`;
+                      await setDoc(doc(db, path), { ...alarm, enabled: newEnabled }).catch(err => handleFirestoreError(err, OperationType.UPDATE, path));
+                    } else {
+                      setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, enabled: newEnabled } : a));
+                    }
+                  }}
                   className={`w-14 h-8 rounded-full transition-all duration-300 relative shadow-inner shrink-0 ${alarm.enabled ? 'bg-gradient-to-r from-indigo-500 to-violet-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                 >
                   <div className={`absolute top-1 w-6 h-6 rounded-full bg-white dark:bg-slate-800 dark:bg-slate-800 shadow-sm transition-all duration-300 ${alarm.enabled ? 'left-7' : 'left-1'}`} />
@@ -736,25 +955,45 @@ const App: React.FC = () => {
                       max="2000" 
                       step="100"
                       value={alarm.radius}
-                      onChange={(e) => setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, radius: Number(e.target.value) } : a))}
+                      onChange={async (e) => {
+                        const newRadius = Number(e.target.value);
+                        if (user) {
+                          const path = `users/${user.uid}/alarms/${alarm.id}`;
+                          await setDoc(doc(db, path), { ...alarm, radius: newRadius }).catch(err => handleFirestoreError(err, OperationType.UPDATE, path));
+                        } else {
+                          setAlarms(prev => prev.map(a => a.id === alarm.id ? { ...a, radius: newRadius } : a));
+                        }
+                      }}
                       className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                   />
               </div>
 
               <div className="flex gap-2 border-t border-slate-50 pt-2">
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
                     setDraftAlarm(alarm);
                     setStatus(AppStatus.CONFIRMING);
                     // Also remove the old one so it gets replaced, or handle update in saveAlarm
-                    setAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                    if (user) {
+                      const path = `users/${user.uid}/alarms/${alarm.id}`;
+                      await deleteDoc(doc(db, path)).catch(err => handleFirestoreError(err, OperationType.DELETE, path));
+                    } else {
+                      setAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                    }
                   }}
                   className="flex-1 py-2 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-xl font-medium text-sm hover:bg-slate-100 transition-colors"
                 >
                   Editar
                 </button>
                 <button 
-                  onClick={() => setAlarms(prev => prev.filter(a => a.id !== alarm.id))}
+                  onClick={async () => {
+                    if (user) {
+                      const path = `users/${user.uid}/alarms/${alarm.id}`;
+                      await deleteDoc(doc(db, path)).catch(err => handleFirestoreError(err, OperationType.DELETE, path));
+                    } else {
+                      setAlarms(prev => prev.filter(a => a.id !== alarm.id));
+                    }
+                  }}
                   className="group relative p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
                 >
                   <Trash2 className="w-5 h-5" />
@@ -823,7 +1062,7 @@ const App: React.FC = () => {
             onClick={() => setStatus(AppStatus.PROFILE)}
             className="group relative bg-white dark:bg-slate-800 dark:bg-slate-800/90 backdrop-blur-md p-3 rounded-2xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
           >
-            <User className="w-6 h-6" />
+            <UserIcon className="w-6 h-6" />
             <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
               Mi Perfil
             </span>
@@ -857,14 +1096,14 @@ const App: React.FC = () => {
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                     placeholder="¿A dónde quieres ir?"
-                    className="flex-1 py-4 px-2 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-extrabold bg-transparent text-xl tracking-tight"
+                    className="flex-1 min-w-0 py-4 px-3 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-extrabold bg-transparent text-xl tracking-tight"
                   />
-                  <div className="flex items-center gap-2 px-1">
-                    {isSuggesting && <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />}
+                  <div className="flex items-center gap-2 pl-2">
+                    {isSuggesting && <Loader2 className="w-6 h-6 animate-spin text-indigo-500 shrink-0" />}
                     <button 
                       type="submit"
                       disabled={!query.trim()}
-                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-10 py-4 rounded-full disabled:opacity-50 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-300 font-black text-lg flex items-center gap-2 border border-white/20"
+                      className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white px-6 sm:px-10 py-3.5 sm:py-4 rounded-full disabled:opacity-50 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-300 font-black text-lg flex items-center gap-2 border border-white/20 whitespace-nowrap shrink-0"
                     >
                       <span>Ir</span>
                       <Navigation className="w-6 h-6" />
@@ -980,30 +1219,74 @@ const App: React.FC = () => {
             >
                 <ArrowLeft className="w-5 h-5" /> Atrás
             </button>
-            <button 
-                onClick={() => setStatus(AppStatus.SETTINGS)}
-                className="group relative p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
-                aria-label="Configuración"
-            >
-                <Settings className="w-6 h-6" />
-                <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
-                  Configuración
-                </span>
-            </button>
+            <div className="flex gap-2">
+              <button 
+                  onClick={() => setStatus(AppStatus.SETTINGS)}
+                  className="group relative p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+                  aria-label="Configuración"
+              >
+                  <Settings className="w-6 h-6" />
+                  <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
+                    Configuración
+                  </span>
+              </button>
+              {user && (
+                <button 
+                    onClick={() => logout()}
+                    className="group relative p-3 bg-rose-50 dark:bg-rose-900/30 rounded-2xl text-rose-600 hover:bg-rose-100 transition-colors"
+                    aria-label="Cerrar Sesión"
+                >
+                    <LogOut className="w-6 h-6" />
+                    <span className="absolute top-full right-0 mt-3 px-3 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 whitespace-nowrap z-50 pointer-events-none shadow-xl border border-white/10 translate-y-1 group-hover:translate-y-0">
+                      Cerrar Sesión
+                    </span>
+                </button>
+              )}
+            </div>
         </div>
         
         <div className="flex items-center gap-5">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-violet-100 rounded-3xl flex items-center justify-center border-4 border-white shadow-lg shadow-indigo-100">
-                <User className="w-10 h-10 text-indigo-600" />
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl flex items-center justify-center border-4 border-white shadow-lg shadow-indigo-100 overflow-hidden">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" />
+                ) : (
+                  <UserIcon className="w-10 h-10 text-white" />
+                )}
             </div>
-            <div>
-                <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Mi Perfil</h2>
-                <p className="text-slate-500 dark:text-slate-400 font-medium">Preferencias y Destinos</p>
+            <div className="flex-1">
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                  {user ? (user.displayName || 'Usuario') : 'Mi Perfil'}
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 font-medium truncate">
+                  {user ? user.email : 'Bienvenido a NapNav'}
+                </p>
             </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
+        
+        {/* Auth Section */}
+        {!user && (
+          <section className="bg-gradient-to-br from-indigo-500 to-violet-600 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-500/20 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Key className="w-24 h-24 rotate-12" />
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-2xl font-black mb-3 leading-tight">Guarda tus lugares <br/>en la nube</h3>
+              <p className="text-indigo-100 mb-8 font-medium max-w-[220px] text-sm leading-relaxed">
+                Inicia sesión para sincronizar tus favoritos e historial en todos tus dispositivos.
+              </p>
+              <button 
+                onClick={() => signInWithGoogle()}
+                className="w-full py-4 bg-white text-indigo-600 rounded-2xl font-black shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <LogIn className="w-5 h-5" />
+                Acceder con Google
+              </button>
+            </div>
+          </section>
+        )}
         
         {/* Section: Preferences */}
         <section>

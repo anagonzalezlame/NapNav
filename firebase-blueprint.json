@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User specific settings and profile information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "settings": {
+           "type": "object",
+           "properties": {
+             "volume": { "type": "number" },
+             "vibration": { "type": "boolean" },
+             "intensity": { "type": "string" },
+             "darkMode": { "type": "boolean" }
+           }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email"]
+    },
+    "SavedPlace": {
+      "title": "Saved Place",
+      "description": "A location saved by the user with optional alarm defaults",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "defaultRadius": { "type": "number" },
+        "alarmMessage": { "type": "string" },
+        "recurrence": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "days": { "type": "array", "items": { "type": "number" } },
+            "until": { "type": "string" }
+          }
+        },
+        "dateAdded": { "type": "number" }
+      },
+      "required": ["id", "name", "lat", "lng", "dateAdded"]
+    },
+    "AlarmConfig": {
+      "title": "Alarm Configuration",
+      "description": "Configuration for an active or scheduled alarm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "target": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "address": { "type": "string" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "radius": { "type": "number" },
+        "alarmMessage": { "type": "string" },
+        "recurrence": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "days": { "type": "array", "items": { "type": "number" } },
+            "until": { "type": "string" }
+          }
+        }
+      },
+      "required": ["id", "enabled", "target", "radius", "alarmMessage", "recurrence"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and settings"
+    },
+    "/users/{userId}/savedPlaces/{placeId}": {
+      "schema": "SavedPlace",
+      "description": "User's favorite places"
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": "SavedPlace",
+      "description": "User's alarm triggered history"
+    },
+    "/users/{userId}/alarms/{alarmId}": {
+      "schema": "AlarmConfig",
+      "description": "User's active/saved alarm configurations"
+    }
+  }
+}

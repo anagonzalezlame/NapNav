@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'email']) && 
+             data.userId == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             (data.get('displayName', '') is string) &&
+             (data.get('photoURL', '') is string) &&
+             (data.get('settings', null) == null || data.settings is map) &&
+             (data.get('updatedAt', null) == null || data.updatedAt == request.time);
+    }
+
+    function isValidSavedPlace(data) {
+      return data.keys().hasAll(['id', 'name', 'lat', 'lng', 'dateAdded']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.lat is number && data.lng is number &&
+             data.dateAdded is number &&
+             (data.get('address', '') is string) &&
+             (data.get('defaultRadius', 0) is number) &&
+             (data.get('alarmMessage', '') is string) &&
+             (data.get('recurrence', null) == null || isValidRecurrence(data.recurrence));
+    }
+
+    function isValidRecurrence(rec) {
+      return rec.keys().hasAll(['type']) &&
+             rec.type in ['once', 'always', 'daysOfWeek', 'untilDate'] &&
+             (rec.get('days', null) == null || (rec.days is list && rec.days.size() <= 7)) &&
+             (rec.get('until', '') is string);
+    }
+
+    function isValidAlarmConfig(data) {
+      return data.keys().hasAll(['id', 'enabled', 'target', 'radius', 'alarmMessage', 'recurrence']) &&
+             data.id is string &&
+             data.enabled is bool &&
+             data.target is map &&
+             data.target.keys().hasAll(['name', 'lat', 'lng']) &&
+             data.radius is number && data.radius > 0 &&
+             data.alarmMessage is string &&
+             isValidRecurrence(data.recurrence);
+    }
+
+    // Match groups
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'settings', 'updatedAt']);
+
+      match /savedPlaces/{placeId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(placeId) && isValidSavedPlace(request.resource.data);
+        allow update: if isOwner(userId) && isValidSavedPlace(request.resource.data) &&
+                        request.resource.data.id == resource.data.id &&
+                        request.resource.data.dateAdded == resource.data.dateAdded;
+        allow delete: if isOwner(userId);
+      }
+
+      match /history/{historyId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(historyId) && isValidSavedPlace(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /alarms/{alarmId} {
+        allow list, get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(alarmId) && isValidAlarmConfig(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
