@@ -209,13 +209,20 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
   
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Extrae la ubicación de la siguiente consulta: "${query}".
-    Devuelve un objeto JSON con:
-    - lat: Latitud (número)
-    - lng: Longitud (número)
-    - name: Nombre corto del lugar
-    - address: Dirección legible en Montevideo, Uruguay.
-    Si la ubicación es ambigua, asume que está en Montevideo.`,
+    contents: `Actúa como un experto en geolocalización para Uruguay.
+    Analiza y extrae la ubicación de la siguiente consulta (incluso si es informal o coloquial): "${query}".
+    
+    INSTRUCCIONES CRÍTICAS:
+    1. Identifica el destino principal de la consulta.
+    2. Proporciona coordenadas (lat, lng) precisas o aproximadas para ese lugar en Uruguay.
+    3. Asegúrate de que el 'name' y 'address' estén redactados de forma natural en ESPAÑOL.
+    4. Si la consulta es ambigua y no especifica departamento, asume por defecto que se refiere a Montevideo, Uruguay.
+
+    Devuelve estrictamente un objeto JSON con:
+    - lat: Latitud (número decimal)
+    - lng: Longitud (número decimal)
+    - name: Nombre corto e identificable del lugar en español.
+    - address: Dirección completa y formateada correctamente en español.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {

@@ -119,11 +119,17 @@ const App: React.FC = () => {
           if (error.code === 3 && useHighAccuracy) {
              console.log("Timeout alta precisión -> Fallback.");
           }
-          let msg = "Ubicación no disponible.";
-           switch (error.code) {
-            case 1: msg = "Permiso denegado."; break;
-            case 2: msg = "Sin señal GPS."; break;
-            case 3: msg = "Tiempo agotado."; break;
+          let msg = "Ubicación no disponible en este momento. Por favor, intenta de nuevo.";
+          switch (error.code) {
+            case 1: 
+              msg = "Permiso denegado. Para que NapNav funcione, habilita los permisos de ubicación en los ajustes de tu navegador."; 
+              break;
+            case 2: 
+              msg = "Sin señal GPS. Asegúrate de estar en un lugar con cielo despejado o usa una conexión Wi-Fi estable."; 
+              break;
+            case 3: 
+              msg = "Tiempo agotado al buscar tu posición. Intenta refrescar o verifica tu conexión a internet."; 
+              break;
           }
           setLocationError(msg);
         },
@@ -577,15 +583,18 @@ const App: React.FC = () => {
     if ('vibrate' in navigator) navigator.vibrate(0);
   };
 
-  const toggleSavedPlace = (place: LocationInfo) => {
-    const exists = savedPlaces.find(p => p.name === place.name && p.lat === place.lat);
+  const toggleSavedPlace = (place: LocationInfo, settings?: { radius?: number, message?: string, recurrence?: RecurrenceConfig }) => {
+    const exists = savedPlaces.find(p => (p.name === place.name || p.address === place.address) && p.lat === place.lat && p.lng === place.lng);
     if (exists) {
       setSavedPlaces(prev => prev.filter(p => p.id !== exists.id));
     } else {
       const newPlace: SavedPlace = {
         ...place,
         id: Date.now().toString(),
-        dateAdded: Date.now()
+        dateAdded: Date.now(),
+        defaultRadius: settings?.radius,
+        alarmMessage: settings?.message,
+        recurrence: settings?.recurrence
       };
       setSavedPlaces(prev => [newPlace, ...prev]);
     }
@@ -593,7 +602,7 @@ const App: React.FC = () => {
 
   const isSaved = (place: LocationInfo | undefined) => {
     if (!place) return false;
-    return savedPlaces.some(p => p.name === place.name && p.lat === place.lat);
+    return savedPlaces.some(p => (p.name === place.name || p.address === place.address) && p.lat === place.lat && p.lng === place.lng);
   };
 
   const deleteSavedPlace = (id: string, e: React.MouseEvent) => {
@@ -1082,24 +1091,42 @@ const App: React.FC = () => {
           ) : (
             <div className="bg-white/40 dark:bg-slate-800/40 backdrop-blur-3xl rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-white/60 dark:border-slate-700/30 overflow-hidden flex flex-col divide-y divide-slate-100/50 dark:divide-slate-700/50">
               {history.map(item => (
-                <button 
-                    key={item.id} 
-                    onClick={() => selectSavedLocation(item)}
-                    className="w-full p-5 flex items-center justify-between text-left bg-transparent hover:bg-white/80 dark:hover:bg-slate-700/40 transition-all duration-300 group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[1.2rem] bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 text-base shadow-inner group-hover:scale-105 transition-all duration-300">
-                       <Bell className="w-5 h-5" />
+                <div key={item.id} className="group relative">
+                  <button 
+                      onClick={() => selectSavedLocation(item)}
+                      className="w-full p-5 flex items-center justify-between text-left bg-transparent hover:bg-white/80 dark:hover:bg-slate-700/40 transition-all duration-300"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-[1.2rem] bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 text-base shadow-inner group-hover:scale-105 transition-all duration-300">
+                         <Bell className="w-5 h-5" />
+                      </div>
+                      <div>
+                          <p className="font-bold text-slate-800 dark:text-slate-100 text-[16px]">{item.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Radio: {formatDistance(item.defaultRadius || 500)}</span>
+                          </div>
+                      </div>
                     </div>
-                    <div>
-                        <p className="font-bold text-slate-800 dark:text-slate-100 text-[16px]">{item.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Radio: {formatDistance(item.defaultRadius || 500)}</span>
-                        </div>
+                    <div className="flex items-center gap-1.5">
+                       <button 
+                        onClick={(e) => { e.stopPropagation(); toggleSavedPlace(item); }}
+                        className={`p-2.5 rounded-xl transition-all duration-300 ${isSaved(item) ? 'text-rose-500 bg-rose-50 dark:bg-rose-500/10' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                      >
+                        <Heart className={`w-4.5 h-4.5 ${isSaved(item) ? 'fill-current' : ''}`} />
+                      </button>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setHistory(prev => prev.filter(p => p.id !== item.id)); 
+                        }}
+                        className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all duration-300"
+                      >
+                        <Trash2 className="w-4.5 h-4.5" />
+                      </button>
+                      <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 dark:text-slate-600 dark:group-hover:text-indigo-400 transition-colors" />
                     </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 dark:text-slate-600 dark:group-hover:text-indigo-400 transition-colors" />
-                </button>
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -1252,9 +1279,10 @@ const App: React.FC = () => {
       
       <button 
         onClick={() => setStatus(AppStatus.IDLE)}
-        className="mt-12 flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm hover:shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 px-8 py-4 rounded-[1.25rem] transition-all duration-300 font-bold text-base hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 hover:-translate-y-0.5 active:scale-95 border border-slate-200/60 dark:border-slate-700/60"
+        className="mt-12 flex items-center gap-3 text-slate-500 dark:text-slate-400 bg-white/20 dark:bg-slate-900/20 backdrop-blur-3xl px-8 py-4 rounded-[1.5rem] border border-white/40 dark:border-slate-700/40 hover:bg-white/40 dark:hover:bg-slate-800/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all duration-300 font-bold group"
       >
-        <ArrowLeft className="w-5 h-5" /> Cancelar
+        <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+        <span>Cancelar búsqueda</span>
       </button>
     </div>
   );
@@ -1287,7 +1315,11 @@ const App: React.FC = () => {
           <div className="flex justify-between items-start mb-2">
              <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex-1 mr-4 leading-tight drop-shadow-sm">{draftAlarm?.target?.name}</h2>
              <button 
-                onClick={() => draftAlarm?.target && toggleSavedPlace(draftAlarm.target)}
+                onClick={() => draftAlarm?.target && toggleSavedPlace(draftAlarm.target, { 
+                  radius: draftAlarm.radius, 
+                  message: draftAlarm.alarmMessage, 
+                  recurrence: draftAlarm.recurrence 
+                })}
                 className={`group relative p-3 rounded-2xl transition-all duration-300 ${isFavorite ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 shadow-inner' : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
              >
                 <Heart className={`w-7 h-7 ${isFavorite ? 'fill-current drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]' : ''}`} />
