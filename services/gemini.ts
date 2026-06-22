@@ -2,7 +2,9 @@ import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { LocationInfo, Coordinates, AlarmIntensity, AgentMission } from "../types";
 
 const getAi = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY 
+    ? process.env.GEMINI_API_KEY 
+    : (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     console.warn("GEMINI_API_KEY no detectada. NapNav funcionará en modo degradado.");
     return null;
@@ -124,7 +126,7 @@ export const chatWithAgent = async (message: string, history: any[] = []) => {
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
-        tools: tools,
+        tools: tools as any,
       }
     });
 
@@ -134,6 +136,7 @@ export const chatWithAgent = async (message: string, history: any[] = []) => {
         if (!fCalls || fCalls.length === 0) break;
 
         const results = await Promise.all(fCalls.map(async (call) => {
+            if (!call.name) return null;
             const handler = functionHandlers[call.name];
             if (handler) {
                 const res = await handler(call.args);
@@ -159,7 +162,7 @@ export const chatWithAgent = async (message: string, history: any[] = []) => {
             contents: contents,
             config: {
                 systemInstruction: systemInstruction,
-                tools: tools,
+                tools: tools as any,
             }
         });
     }

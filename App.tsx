@@ -9,7 +9,7 @@ import { useAgent } from './contexts/AgentContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateAlarmAudio, getPlaceSuggestions, findLocation } from './services/gemini';
 import { calculateDistance, formatDistance } from './utils/geo';
-import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity, PendingAction } from './types';
+import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity, PendingAction, RecurrenceConfig } from './types';
 import MapDisplay from './components/MapDisplay';
 import { LineChart, YAxis, Line, ResponsiveContainer } from 'recharts';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
@@ -33,6 +33,8 @@ const App: React.FC = () => {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [idleMapCenter, setIdleMapCenter] = useState<Coordinates>({ lat: -34.9011, lng: -56.1645 });
+  const [idleMapZoom, setIdleMapZoom] = useState<number>(13);
   
   const [locationError, setLocationError] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
@@ -309,23 +311,34 @@ const App: React.FC = () => {
       setIsSuggesting(true);
       debounceRef.current = window.setTimeout(async () => {
         try {
-          // Using Gemini AI for context-aware autocomplete
-          const suggestionsList = await getPlaceSuggestions(query, currentLocation);
+          // Búsqueda directa con Nominatim (OpenStreetMap)
+          let viewbox = '';
+          if (currentLocation) {
+            // Preferencia a lugares cerca del usuario
+            const delta = 0.5;
+            viewbox = `&viewbox=${currentLocation.lng - delta},${currentLocation.lat + delta},${currentLocation.lng + delta},${currentLocation.lat - delta}&bounded=1`;
+          }
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=uy${viewbox}`);
           
-          if (suggestionsList && suggestionsList.length > 0) {
-            const mappedResults = suggestionsList.map(name => ({
-              display_name: name,
-            }));
-
-            setSuggestions(mappedResults);
+          if (!response.ok) throw new Error("Networking issue");
+          
+          const results = await response.json();
+          
+          if (results && results.length > 0) {
+            setSuggestions(results);
             setShowSuggestions(true);
+          } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
           }
         } catch (e) {
           console.error("Falló el autocompletado", e);
+          setSuggestions([]);
+          setShowSuggestions(false);
         } finally {
           setIsSuggesting(false);
         }
-      }, 250); // Reduced delay to 250ms for near-instant feedback
+      }, 350); 
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -520,11 +533,15 @@ const App: React.FC = () => {
       document.activeElement.blur();
     }
 
+    const lat = parseFloat(suggestion.lat);
+    const lon = parseFloat(suggestion.lon);
+
+    setQuery(suggestion.display_name);
+    setSuggestions([]);
     setShowSuggestions(false);
-    setQuery(''); // Limpiar el input al confirmar
     
-    // Delegate to executeSearch because suggestion is just a plain string display name now
-    executeSearch(suggestion.display_name);
+    setIdleMapCenter({ lat, lng: lon });
+    setIdleMapZoom(16);
   };
 
   const saveAlarm = async () => {
@@ -988,7 +1005,7 @@ const App: React.FC = () => {
       {/* Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 opacity-40 grayscale-[0.8] brightness-105">
-          <MapDisplay center={{ lat: -34.9011, lng: -56.1645 }} zoom={13} darkMode={alarmSettings.darkMode} />
+          <MapDisplay center={idleMapCenter} zoom={idleMapZoom} darkMode={alarmSettings.darkMode} />
         </div>
         {/* Improved overlay for legibility */}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-50/95 via-slate-50/75 to-slate-50/95 backdrop-blur-sm"></div>
@@ -1055,7 +1072,7 @@ const App: React.FC = () => {
           Tu secretaria personal de movilidad. Te cuidamos mientras descansas.
         </p>
         
-        <div className="w-full max-w-md mx-auto relative z-30">
+        <div className="w-full max-w-md mx-auto relative z-[1000]">
           <div className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/40 to-violet-500/40 rounded-[2.5rem] blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
             <div className="relative overflow-hidden rounded-[2.5rem] p-[2px] bg-white/20 dark:bg-slate-800/20 backdrop-blur-3xl focus-within:bg-gradient-to-r focus-within:from-indigo-500 focus-within:to-violet-500 transition-all duration-300 shadow-2xl shadow-indigo-900/10">
@@ -1093,7 +1110,7 @@ const App: React.FC = () => {
                   initial={{ opacity: 0, y: -10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute top-full left-0 right-0 mt-5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-3xl rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800/50 overflow-hidden z-40 p-2"
+                  className="absolute top-full left-0 right-0 mt-5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-3xl rounded-[2rem] shadow-2xl border border-white/50 dark:border-slate-800/50 overflow-hidden z-[1000] p-2"
                 >
                   {suggestions.map((sug, i) => (
                     <button
@@ -1252,7 +1269,14 @@ const App: React.FC = () => {
                 Inicia sesión para sincronizar tus favoritos e historial en cualquier dispositivo.
               </p>
               <button 
-                onClick={() => signInWithGoogle()}
+                onClick={async () => {
+                  try {
+                    await signInWithGoogle()
+                  } catch(e) {
+                    // Ignoramos el error para no crashear la UI si Firebase falla o el usuario cancela
+                    console.error('Login ignorado o fallido', e);
+                  }
+                }}
                 className="w-full py-4 bg-white text-indigo-600 rounded-2xl font-black shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
               >
                 <LogIn className="w-5 h-5" />

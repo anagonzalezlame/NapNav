@@ -98,7 +98,7 @@ const MapUpdater: React.FC<{
     const updateMap = () => {
       try {
         if (explicitCenter && !isTracking) {
-          map.setView([explicitCenter.lat, explicitCenter.lng], zoom);
+          map.flyTo([explicitCenter.lat, explicitCenter.lng], zoom, { duration: 1.5 });
           return;
         }
 
