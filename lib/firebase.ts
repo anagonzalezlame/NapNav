@@ -1,6 +1,6 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, disableNetwork } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY,
@@ -12,7 +12,7 @@ const firebaseConfig = {
 };
 
 // Validación de configuración antes de inicializar
-const hasRealConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'tu-api-key' && firebaseConfig.projectId;
+export const hasRealConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'tu-api-key' && firebaseConfig.projectId;
 
 if (!hasRealConfig) {
   console.warn("⚠️ Firebase API Key no configurada o inválida. Las funciones de autenticación y base de datos no estarán disponibles.");
@@ -35,6 +35,10 @@ try {
 export const auth = getAuth(app);
 const databaseId = (import.meta as any).env?.VITE_FIREBASE_FIRESTORE_DATABASE_ID;
 export const db = databaseId && typeof databaseId === 'string' ? getFirestore(app, databaseId) : getFirestore(app);
+
+if (!hasRealConfig) {
+  disableNetwork(db).catch(console.error);
+}
 
 export const googleProvider = new GoogleAuthProvider();
 
@@ -111,6 +115,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // CRITICAL: Connection test
 async function testConnection() {
+  if (!hasRealConfig) {
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
