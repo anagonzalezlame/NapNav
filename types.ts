@@ -6,6 +6,7 @@ export interface Coordinates {
 export interface LocationInfo extends Coordinates {
   name: string;
   address?: string;
+  suggestedRadius?: number;
 }
 
 export enum AppStatus {

@@ -7,10 +7,11 @@ import {
 } from 'lucide-react';
 import { useAgent } from './contexts/AgentContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateAlarmAudio, getPlaceSuggestions } from './services/gemini';
+import { generateAlarmAudio, getPlaceSuggestions, findLocation } from './services/gemini';
 import { calculateDistance, formatDistance } from './utils/geo';
 import { AppStatus, LocationInfo, AlarmConfig, Coordinates, SavedPlace, AlarmSettings, AlarmIntensity, PendingAction } from './types';
 import MapDisplay from './components/MapDisplay';
+import { LineChart, YAxis, Line, ResponsiveContainer } from 'recharts';
 import { auth, db, signInWithGoogle, logout, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -458,7 +459,7 @@ const App: React.FC = () => {
 
   // --- Logic Functions ---
 
-  const executeSearch = async (searchQuery: string, radiusOverride: number = 500) => {
+  const executeSearch = async (searchQuery: string, radiusOverride?: number) => {
     if (!searchQuery.trim()) return;
 
     // Quitar el foco del input para ocultar el teclado en móviles
@@ -471,35 +472,15 @@ const App: React.FC = () => {
     setQuery(''); // Limpiar el input al confirmar
     
     try {
-      let locationBias = '&lat=-34.9011&lon=-56.1645'; // Default to Montevideo
-      if (currentLocation) {
-         locationBias = `&lat=${currentLocation.lat}&lon=${currentLocation.lng}`;
-      }
-      const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&limit=1${locationBias}`);
-      const results = await response.json();
-      
-      if (!results || !results.features || results.features.length === 0) {
-        throw new Error("No results");
-      }
-      
-      const feature = results.features[0];
-      const p = feature.properties;
-      const namePart = p.name || p.street || 'Ubicación';
-      const locationParts = [p.city, p.state, p.country].filter(Boolean);
-      const display_name = `${namePart}, ${locationParts.join(', ')}`.replace(/(^,\s*)|(,\s*$)/g, '');
-
-      const location: LocationInfo = {
-        name: namePart,
-        address: display_name,
-        lat: feature.geometry.coordinates[1],
-        lng: feature.geometry.coordinates[0]
-      };
+      const location = await findLocation(searchQuery);
 
       const alarmScript = `¡Atención! Estás llegando a ${location.name}.`;
+      
+      const finalRadius = radiusOverride !== undefined ? radiusOverride : (location.suggestedRadius || 500);
 
       setDraftAlarm({
         target: location,
-        radius: radiusOverride, 
+        radius: finalRadius, 
         alarmMessage: alarmScript,
         recurrence: { type: 'once' }
       });
@@ -1698,7 +1679,32 @@ const App: React.FC = () => {
     );
   };
 
-  const renderTracking = () => (
+  const renderTracking = () => {
+    let estimatedArrivalString = "Calculando ETA...";
+    if (distanceHistory.length >= 2 && currentDistance !== null) {
+        const firstPoint = distanceHistory[0];
+        const lastPoint = distanceHistory[distanceHistory.length - 1];
+        const timeDeltaSec = (lastPoint.time - firstPoint.time) / 1000;
+        const distDelta = firstPoint.distance - lastPoint.distance;
+        
+        if (timeDeltaSec > 5 && distDelta > 0) {
+            const speedMetersPerSec = distDelta / timeDeltaSec;
+            if (speedMetersPerSec > 0.1) {
+                const etaSec = currentDistance / speedMetersPerSec;
+                if (etaSec < 60) {
+                    estimatedArrivalString = `< 1 min`;
+                } else {
+                    estimatedArrivalString = `~ ${Math.round(etaSec / 60)} min`;
+                }
+            } else {
+                estimatedArrivalString = "Detenido o moviéndose lento";
+            }
+        } else if (distDelta <= 0 && timeDeltaSec > 5) {
+            estimatedArrivalString = "Alejándose o detenido";
+        }
+    }
+
+    return (
     <div className="relative h-[100dvh] bg-slate-900 text-white font-sans overflow-hidden flex flex-col">
       {/* Map Section - Full screen */}
       <div className="absolute inset-0 z-0">
@@ -1751,21 +1757,30 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            <div className="h-16 w-full mb-8 opacity-60">
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={distanceHistory}>
-                        <YAxis domain={['auto', 'auto']} hide />
-                        <Line 
-                            type="monotone" 
-                            dataKey="distance" 
-                            stroke="#a5b4fc" 
-                            strokeWidth={4} 
-                            dot={false}
-                            isAnimationActive={false}
-                            style={{ filter: "drop-shadow(0 0 8px rgba(165,180,252,0.6))" }}
-                        />
-                    </LineChart>
-                </ResponsiveContainer>
+            <div className="h-16 w-full mb-8 flex items-center gap-4">
+                <div className="flex-1 h-full opacity-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={distanceHistory}>
+                            <YAxis domain={['auto', 'auto']} hide />
+                            <Line 
+                                type="monotone" 
+                                dataKey="distance" 
+                                stroke="#a5b4fc" 
+                                strokeWidth={4} 
+                                dot={false}
+                                isAnimationActive={true}
+                                animationDuration={1500}
+                                animationEasing="ease-in-out"
+                                style={{ filter: "drop-shadow(0 0 8px rgba(165,180,252,0.6))" }}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="bg-slate-800/80 rounded-xl p-3 border border-slate-700 w-32 flex flex-col justify-center items-center shrink-0 shadow-lg relative overflow-hidden">
+                    <div className="absolute inset-0 bg-indigo-500/10 animate-pulse pointer-events-none" />
+                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1 z-10">ETA</span>
+                    <span className="text-white font-black text-sm tracking-tight text-center z-10 drop-shadow-md leading-tight">{estimatedArrivalString}</span>
+                </div>
             </div>
 
             <button 
@@ -1783,6 +1798,7 @@ const App: React.FC = () => {
       </div>
     </div>
   );
+  };
 
   const renderAlarm = () => (
     <div className={`fixed inset-0 text-white z-50 flex flex-col items-center justify-center p-8 transition-colors duration-500 ${

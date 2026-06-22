@@ -216,13 +216,15 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
     1. Identifica el destino principal de la consulta.
     2. Proporciona coordenadas (lat, lng) precisas o aproximadas para ese lugar en Uruguay.
     3. Asegúrate de que el 'name' y 'address' estén redactados de forma natural en ESPAÑOL.
-    4. Si la consulta es ambigua y no especifica departamento, asume por defecto que se refiere a Montevideo, Uruguay.
+    4. Estima un 'suggestedRadius' (radio sugerido en metros) basado en el tipo de lugar. Por ejemplo, un aeropuerto ('airport') o universidad debería tener un radio más grande (ej. 2000 o 3000 metros), mientras que una casa ('home') o tienda pequeña debería tener un radio más pequeño (ej. 200 o 300 metros). Si es una parada de bus, tal vez 500 metros.
+    5. Si la consulta es ambigua y no especifica departamento, asume por defecto que se refiere a Montevideo, Uruguay.
 
     Devuelve estrictamente un objeto JSON con:
     - lat: Latitud (número decimal)
     - lng: Longitud (número decimal)
     - name: Nombre corto e identificable del lugar en español.
-    - address: Dirección completa y formateada correctamente en español.`,
+    - address: Dirección completa y formateada correctamente en español.
+    - suggestedRadius: El radio estimado en metros (número entero).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -232,8 +234,9 @@ export const findLocation = async (query: string): Promise<LocationInfo> => {
           lng: { type: Type.NUMBER },
           name: { type: Type.STRING },
           address: { type: Type.STRING },
+          suggestedRadius: { type: Type.NUMBER },
         },
-        required: ["lat", "lng", "name", "address"],
+        required: ["lat", "lng", "name", "address", "suggestedRadius"],
       },
     },
   });
