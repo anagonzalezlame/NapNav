@@ -45,8 +45,14 @@ const App: React.FC = () => {
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   
   // Persistence State
-  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
-  const [history, setHistory] = useState<SavedPlace[]>([]);
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>(() => {
+    const loaded = localStorage.getItem('napnav_places');
+    return loaded ? JSON.parse(loaded) : [];
+  });
+  const [history, setHistory] = useState<SavedPlace[]>(() => {
+    const loaded = localStorage.getItem('napnav_history');
+    return loaded ? JSON.parse(loaded) : [];
+  });
 
   // Alarm Settings
   const [alarmSettings, setAlarmSettings] = useState<AlarmSettings>(() => {
@@ -198,13 +204,9 @@ const App: React.FC = () => {
   // Load from LocalStorage (Fallback/Initial)
   useEffect(() => {
     if (!user) {
-      const loadedPlaces = localStorage.getItem('napnav_places');
-      const loadedHistory = localStorage.getItem('napnav_history');
       const loadedSettings = localStorage.getItem('napnav_settings');
       const loadedAlarms = localStorage.getItem('napnav_alarms');
       
-      if (loadedPlaces) setSavedPlaces(JSON.parse(loadedPlaces));
-      if (loadedHistory) setHistory(JSON.parse(loadedHistory));
       if (loadedSettings) {
         const parsed = JSON.parse(loadedSettings);
         setAlarmSettings(prev => ({ ...prev, ...parsed }));
@@ -215,21 +217,12 @@ const App: React.FC = () => {
 
   // Save to LocalStorage / Firebase
   useEffect(() => {
-    if (user) {
-      // Local copy as cache
-      localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
-    } else {
-      localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
-    }
-  }, [savedPlaces, user]);
+    localStorage.setItem('napnav_places', JSON.stringify(savedPlaces));
+  }, [savedPlaces]);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('napnav_history', JSON.stringify(history));
-    } else {
-      localStorage.setItem('napnav_history', JSON.stringify(history));
-    }
-  }, [history, user]);
+    localStorage.setItem('napnav_history', JSON.stringify(history));
+  }, [history]);
 
   useEffect(() => {
     if (user) {
